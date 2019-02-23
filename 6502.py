@@ -1,9 +1,20 @@
 from util import *
+from threading import Thread
+from ram import RAM
 
 
-class CPU:
+class CPU(Thread):
 
-    def __init__(self, mode=0, frequency=1, rom_path="ROM/test.bin"):
+    def __init__(self, mode=0, frequency=1, rom_path="ROM/test2.bin", ram=None):
+
+        # -- Threading --
+        Thread.__init__(self)
+
+        # -- RAM --
+        if ram is None:
+            self.ram = RAM()
+        else:
+            self.ram = ram
 
         # -- Registers --
 
@@ -41,8 +52,8 @@ class CPU:
         self.load_rom(self.rom_path)        # Sets the rom field to file contents
 
     def __repr__(self):
-        SP = bfmt(self.SP[0]) + " " + bfmt(self.SP [1])
-        PC = bfmt(self.PC)
+        sp = bfmt(self.SP[0]) + " " + bfmt(self.SP[1])
+        pc = bfmt(self.PC)
         flg = bfmt(self.flags)
         run = "True " if self.running else "False"
         mode = "Async" if self.mode == 0 else "Step "
@@ -50,16 +61,20 @@ class CPU:
         state = "+=================" + "===========================+\n"\
                 "|          CPU: " + self.name + "          |\n"\
                 "+=================+" + "==========================+\n"\
-                "| AX |  " + bfmt(self.AX) + "  | SP |  " + SP + "  |\n"\
+                "| AX |  " + bfmt(self.AX) + "  | SP |  " + sp + "  |\n"\
                 "+-----------------+" + "--------------------------+\n"\
-                "|  X |  " + bfmt(self.X) + "  | PC |           " + PC + "  |\n"\
+                "|  X |  " + bfmt(self.X) + "  | PC |           " + pc + "  |\n"\
                 "+-----------------+" + "--------------------------+\n"\
                 "|  Y |  " + bfmt(self.Y) + "  | Flags |        " + flg + "  |\n"\
                 "+=================+" + "================||||||||==+\n"\
                 "| Running: " + run + "  | Mode: " + mode + " |  NV-BDIZC  |\n"\
                 "+=================+" + "==========================+\n"
 
-        return state
+        # | Uncomment for a memory dump in case of debugging
+        # v
+        # self.ram.dump_heap()
+
+        return state + "\n" + str(self.ram)
 
     def run(self):
         self.running = True
@@ -121,6 +136,7 @@ class CPU:
     # Absolute
     def sta(self, addr):
         print("STA $0x" + hfmt(addr, 4))
+        self.ram.write(addr, self.AX)
         self.offset += 2
 
 

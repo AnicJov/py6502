@@ -7,7 +7,10 @@ def bprint(num):
 
 
 def bfmt(num, size=8):
-	return format(num, 'b').zfill(size)
+	try:
+		return format(num, 'b').zfill(size)
+	except ValueError:
+		return num
 
 
 def hfmt(num, size=2):
@@ -16,7 +19,7 @@ def hfmt(num, size=2):
 
 
 def clear():
-	os.system('cls' if os.name=='nt' else 'clear')
+	os.system('cls' if os.name == 'nt' else 'clear')
 
 
 #      f-tion ref | freq. in Hz
@@ -31,3 +34,8 @@ def freq(function, frequency=1.0):
 					break
 			except ZeroDivisionError:
 				break
+
+
+def make_dir(directory):
+	if not os.path.exists(directory):
+		os.makedirs(directory)
