@@ -5,7 +5,7 @@ from ram import RAM
 
 class CPU(Thread):
 
-    def __init__(self, mode=0, frequency=1, rom_path="ROM/test4.bin", ram=None):
+    def __init__(self, mode=0, frequency=1, rom_path="ROM/test5.bin", ram=None):
 
         # -- Threading --
         Thread.__init__(self)
@@ -97,6 +97,7 @@ class CPU(Thread):
 
         # In case of interrupt
         if self.flags & 0b00010000:
+            self.running = False
             input("<Interrupt>")
             clear()
             print(self)
@@ -118,19 +119,28 @@ class CPU(Thread):
 
             #           LDA Immediate
             if instruction[0] == 0xa9:
-                self.lda(instruction[1])
+                self.lda_im(instruction[1])
+            #           LDX Immediate
+            if instruction[0] == 0xa2:
+                self.ldx_im(instruction[1])
             #           STA Absolute
             if instruction[0] == 0x8d:
                 self.sta_abs(instruction[1] + instruction[2])
             #           STA Zero Page
             if instruction[0] == 0x85:
                 self.sta_zp(instruction[1])
+            #           STX Absolute
+            if instruction[0] == 0x8e:
+                self.stx_abs(instruction[1] + instruction[2])
             #           TAX Implied
             if instruction[0] == 0xaa:
                 self.tax()
             #           INX Implied
             if instruction[0] == 0xe8:
                 self.inx()
+            #           DEX Implied
+            if instruction[0] == 0xca:
+                self.dex()
             #           ADC Immediate
             if instruction[0] == 0x69:
                 self.adc_im(instruction[1])
@@ -140,8 +150,15 @@ class CPU(Thread):
             #           BRK Implied
             if instruction[0] == 0x00:
                 self.brk()
+            #           BNE Relative
+            if instruction[0] == 0xd0:
+                self.bne(instruction[1])
+            #           CPX Immediate
+            if instruction[0] == 0xe0:
+                self.cpx_im(instruction[1])
 
         except IndexError:
+            self.running = False
             print("End of ROM")
             input("Press <Enter> to exit...")
             exit()
@@ -166,10 +183,12 @@ class CPU(Thread):
         else:
             self.flags = self.flags & 0b11111110
 
-    # TODO: Fix this check
     def overflow_check(self, val1, val2):
-        if (val1 & 0b10000000 and val2 & 0b10000000 and not ((val1 + val2) & 0b10000000)) or\
-                (not (val1 & 0b10000000) and not (val2 & 0b10000000) and (val1 + val2) & 0b10000000):
+        print(val1, val2)
+        val_sum = val1 + val2
+        if (val1 & 0b10000000) and (val2 & 0b10000000) and (not (val_sum & 0b10000000)):
+            self.flags = self.flags | 0b01000000
+        elif (not (val1 & 0b10000000)) and (not (val2 & 0b10000000)) and (val_sum & 0b10000000):
             self.flags = self.flags | 0b01000000
         else:
             self.flags = self.flags & 0b10111111
@@ -178,10 +197,23 @@ class CPU(Thread):
 
     # - LDA - Load Accumulator -
     # Immediate
-    def lda(self, val):
+    def lda_im(self, val):
         print("LDA #0x" + hfmt(val))
 
         self.AX = val
+        # Set zero flag
+        self.zero_check(val)
+        # Set negative flag
+        self.negative_check(val)
+
+        self.offset += 1
+
+    # - LDX - Load X Register
+    # Immediate
+    def ldx_im(self, val):
+        print("LDX #0x" + hfmt(val))
+
+        self.X = val
         # Set zero flag
         self.zero_check(val)
         # Set negative flag
@@ -203,6 +235,14 @@ class CPU(Thread):
 
         self.ram.write(addr, self.AX)
         self.offset += 1
+
+    # - STX - Store X Register
+    # Absolute
+    def stx_abs(self, addr):
+        print("STX $0x" + hfmt(addr, 4))
+
+        self.ram.write(addr, self.X)
+        self.offset += 2
 
     # - TAX - Transfer Accumulator to X
     # Implied
@@ -226,6 +266,17 @@ class CPU(Thread):
         # Set negative flag
         self.negative_check(self.X)
 
+    # - DEX - Decrement X Register
+    # Implied
+    def dex(self):
+        print("DEX")
+
+        self.X -= 1
+        # Set zero flag
+        self.zero_check(self.X)
+        # Set negative flag
+        self.negative_check(self.X)
+
     # - ADC - Add with Carry
     # Immediate
     def adc_im(self, val):
@@ -239,7 +290,7 @@ class CPU(Thread):
         # Set zero flag
         self.zero_check(result_8)
         # Set overflow flag
-        self.overflow_check(self.X, val)
+        self.overflow_check(self.AX, val)
         # Set negative flag
         self.negative_check(result_8)
 
@@ -260,7 +311,7 @@ class CPU(Thread):
         # Set zero flag
         self.zero_check(result_8)
         # Set overflow flag
-        self.overflow_check(self.X, val)
+        self.overflow_check(self.AX, val)
         # Set negative flag
         self.negative_check(result_8)
 
@@ -281,6 +332,42 @@ class CPU(Thread):
 
         # Set break flag
         self.flags = self.flags ^ 0b00010000
+
+    # - BNE - Branch if Not Equal
+    # Relative
+    def bne(self, addr):
+        print("BNE $0x" + hfmt(addr))
+
+        if not (self.flags & 0b00000010):
+            if not (addr & 0x10000000):
+                print(hex(addr), hex(addr - 0b10000000), hex((addr - 0b10000000) >> 4))
+                self.PC = self.PC - ((addr - 0b10000000) >> 4)
+            else:
+                self.PC += addr
+        else:
+            self.offset += 1
+
+    # - CPX - Compare X Register
+    # Immediate
+    def cpx_im(self, val):
+        print("CPX #0x" + hfmt(val))
+
+        # If value of X is greater than passed value, set carry flag
+        if self.X >= val:
+            self.flags = self.flags | 0b00000001
+        else:
+            self.flags = self.flags & 0b11111110
+
+        # If value of X is equal to passed value, set zero flag
+        if self.X == val:
+            self.flags = self.flags | 0b00000010
+        else:
+            self.flags = self.flags & 0b11111101
+
+        # If bit 7 of the result is set, set negative flag
+        self.negative_check(self.X)
+
+        self.offset += 1
 
 
 if __name__ == "__main__":
