@@ -36,7 +36,7 @@ class RAM(Thread):
 
     def init_heap(self):
         for _ in range(0, self.address_space):
-            self.heap.append(bfmt(0, self.data_width))
+            self.heap.append(0b00000000)
 
     def push(self, data):
         self.stack.append(data)

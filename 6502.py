@@ -5,7 +5,7 @@ from ram import RAM
 
 class CPU(Thread):
 
-    def __init__(self, mode=0, frequency=1, rom_path="ROM/test2.bin", ram=None):
+    def __init__(self, mode=0, frequency=1, rom_path="ROM/test4.bin", ram=None):
 
         # -- Threading --
         Thread.__init__(self)
@@ -37,7 +37,7 @@ class CPU(Thread):
         #
         #              NV-BDIZC
         #              || |||||
-        self.flags = 0b00000000             # Processor flags
+        self.flags = 0b00100000             # Processor flags
 
         # -- Other --
 
@@ -94,8 +94,17 @@ class CPU(Thread):
 
         self.decode_instruction(self.rom[index:index+3])
         self.PC += 1
-        if self.mode != 0:
-            input()
+
+        # In case of interrupt
+        if self.flags & 0b00010000:
+            input("<Interrupt>")
+            clear()
+            print(self)
+            input("Press <Enter> to exit...")
+            exit()
+        else:
+            if self.mode != 0:
+                input()
 
     def load_rom(self, path):
         with open(path, 'rb') as rom:
@@ -103,7 +112,8 @@ class CPU(Thread):
 
     def decode_instruction(self, instruction):
         try:
-            print("Current instruction: ", end='')
+            tmp = instruction[0]
+            print("Current instruction: 0x", end='')
             print(hfmt(instruction[0]))
 
             #           LDA Immediate
@@ -111,11 +121,58 @@ class CPU(Thread):
                 self.lda(instruction[1])
             #           STA Absolute
             if instruction[0] == 0x8d:
-                self.sta(instruction[1] + instruction[2])
+                self.sta_abs(instruction[1] + instruction[2])
+            #           STA Zero Page
+            if instruction[0] == 0x85:
+                self.sta_zp(instruction[1])
+            #           TAX Implied
+            if instruction[0] == 0xaa:
+                self.tax()
+            #           INX Implied
+            if instruction[0] == 0xe8:
+                self.inx()
+            #           ADC Immediate
+            if instruction[0] == 0x69:
+                self.adc_im(instruction[1])
+            #           ADC Zero Page
+            if instruction[0] == 0x65:
+                self.adc_zp(instruction[1])
+            #           BRK Implied
+            if instruction[0] == 0x00:
+                self.brk()
+
         except IndexError:
             print("End of ROM")
             input("Press <Enter> to exit...")
             exit()
+
+    # -- Processor state checks --
+
+    def zero_check(self, val):
+        if val == 0:
+            self.flags = self.flags | 0b00000010
+        else:
+            self.flags = self.flags & 0b11111101
+
+    def negative_check(self, val):
+        if val & 0b10000000:
+            self.flags = self.flags | 0b10000000
+        else:
+            self.flags = self.flags & 0b01111111
+
+    def carry_check(self, val):
+        if val > 255:
+            self.flags = self.flags | 0b00000001
+        else:
+            self.flags = self.flags & 0b11111110
+
+    # TODO: Fix this check
+    def overflow_check(self, val1, val2):
+        if (val1 & 0b10000000 and val2 & 0b10000000 and not ((val1 + val2) & 0b10000000)) or\
+                (not (val1 & 0b10000000) and not (val2 & 0b10000000) and (val1 + val2) & 0b10000000):
+            self.flags = self.flags | 0b01000000
+        else:
+            self.flags = self.flags & 0b10111111
 
     # -- Instructions --
 
@@ -123,25 +180,111 @@ class CPU(Thread):
     # Immediate
     def lda(self, val):
         print("LDA #0x" + hfmt(val))
+
         self.AX = val
         # Set zero flag
-        if val == 0:
-            self.flags = self.flags ^ 0b00000010
+        self.zero_check(val)
         # Set negative flag
-        if val & 0b10000000:
-            self.flags = self.flags ^ 0b10000000
+        self.negative_check(val)
+
         self.offset += 1
 
     # - STA - Store Accumulator
     # Absolute
-    def sta(self, addr):
+    def sta_abs(self, addr):
         print("STA $0x" + hfmt(addr, 4))
+
         self.ram.write(addr, self.AX)
         self.offset += 2
 
+    # Zero Page
+    def sta_zp(self, addr):
+        print("STA $0x" + hfmt(addr, 2))
+
+        self.ram.write(addr, self.AX)
+        self.offset += 1
+
+    # - TAX - Transfer Accumulator to X
+    # Implied
+    def tax(self):
+        print("TAX")
+
+        self.X = self.AX
+        # Set zero flag
+        self.zero_check(self.X)
+        # Set negative flag
+        self.negative_check(self.X)
+
+    # - INX - Increment X Register
+    # Implied
+    def inx(self):
+        print("INX")
+
+        self.X += 1
+        # Set zero flag
+        self.zero_check(self.X)
+        # Set negative flag
+        self.negative_check(self.X)
+
+    # - ADC - Add with Carry
+    # Immediate
+    def adc_im(self, val):
+        print("ADC #0x" + hfmt(val, 2))
+
+        result = self.AX + val
+        result_8 = result - 0b100000000
+
+        # Set carry flag
+        self.carry_check(result)
+        # Set zero flag
+        self.zero_check(result_8)
+        # Set overflow flag
+        self.overflow_check(self.X, val)
+        # Set negative flag
+        self.negative_check(result_8)
+
+        self.AX = result_8
+        self.offset += 1
+
+    # Zero Page
+    def adc_zp(self, addr):
+        print("ADC $0x" + hfmt(addr, 2))
+
+        val = self.ram.read(addr)
+
+        result = self.AX + val
+        result_8 = result - 0b100000000
+
+        # Set carry flag
+        self.carry_check(result)
+        # Set zero flag
+        self.zero_check(result_8)
+        # Set overflow flag
+        self.overflow_check(self.X, val)
+        # Set negative flag
+        self.negative_check(result_8)
+
+        self.AX = result_8
+        self.offset += 1
+
+    # - BRK - Force Interrupt
+    # Implied
+    def brk(self):
+        print("BRK")
+
+        # Push program counter and processor status
+        self.ram.push(self.PC)
+        self.ram.push(self.flags)
+
+        # IRQ interrupt vector at $FFFE/F is loaded into the PC
+        self.PC = self.ram.read(0xFFFE)
+
+        # Set break flag
+        self.flags = self.flags ^ 0b00010000
+
 
 if __name__ == "__main__":
-    cpu = CPU(mode=1)
+    cpu = CPU(mode=1, frequency=0)
     clear()
     print(cpu)
     print("6502 Emulator by Andrija Jovanovic\n")
