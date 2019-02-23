@@ -28,7 +28,6 @@ class CPU:
         #              || |||||
         self.flags = 0b00000000             # Processor flags
 
-
         # -- Other --
 
         self.name = "MOS Technology 6502"   # Full name of the processor
@@ -36,10 +35,10 @@ class CPU:
         self.running = False                # If true, execute instructions
         self.mode = mode                    # 0 for Asynchronous, 1 for Step
         self.rom_path = rom_path            # Path to a ROM
-        self.offset = 0
+        self.offset = 0                     # Memory offset of the program
+        self.rom = None                     # ROM binary information
 
-        self.load_rom(self.rom_path)
-
+        self.load_rom(self.rom_path)        # Sets the rom field to file contents
 
     def __repr__(self):
         SP = bfmt(self.SP[0]) + " " + bfmt(self.SP [1])
@@ -123,6 +122,7 @@ class CPU:
     def sta(self, addr):
         print("STA $0x" + hfmt(addr, 4))
         self.offset += 2
+
 
 if __name__ == "__main__":
     cpu = CPU(mode=1)
