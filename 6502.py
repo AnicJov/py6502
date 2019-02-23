@@ -338,6 +338,7 @@ class CPU(Thread):
     def bne(self, addr):
         print("BNE $0x" + hfmt(addr))
 
+        # TODO: Fix this functionality
         if not (self.flags & 0b00000010):
             if not (addr & 0x10000000):
                 print(hex(addr), hex(addr - 0b10000000), hex((addr - 0b10000000) >> 4))
