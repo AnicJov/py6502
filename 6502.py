@@ -90,7 +90,9 @@ class CPU(Thread):
         clear()
         print(self)
 
-        index = self.PC + self.offset
+        self.PC += self.offset
+        index = self.PC
+        self.offset = 0
 
         self.decode_instruction(self.rom[index:index+3])
         self.PC += 1
@@ -338,11 +340,13 @@ class CPU(Thread):
     def bne(self, addr):
         print("BNE $0x" + hfmt(addr))
 
-        # TODO: Fix this functionality
+        # If zero bit is clear add relative displacement
         if not (self.flags & 0b00000010):
+            # If number is negative subtract it's two's complement
             if not (addr & 0x10000000):
-                print(hex(addr), hex(addr - 0b10000000), hex((addr - 0b10000000) >> 4))
-                self.PC = self.PC - ((addr - 0b10000000) >> 4)
+                num = decomp(addr)
+                self.PC -= num
+            # If number is positive add it to the program counter
             else:
                 self.PC += addr
         else:
