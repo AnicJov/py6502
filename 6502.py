@@ -5,7 +5,7 @@ from ram import RAM
 
 class CPU(Thread):
 
-    def __init__(self, mode=0, frequency=1, rom_path="ROM/test5.bin", ram=None):
+    def __init__(self, mode=0, frequency=1, rom_path="ROM/test7.bin", ram=None):
 
         # -- Threading --
         Thread.__init__(self)
@@ -53,7 +53,7 @@ class CPU(Thread):
 
     def __repr__(self):
         sp = bfmt(self.SP[0]) + " " + bfmt(self.SP[1])
-        pc = bfmt(self.PC)
+        pc = bfmt(self.PC, 16)
         flg = bfmt(self.flags)
         run = "True " if self.running else "False"
         mode = "Async" if self.mode == 0 else "Step "
@@ -63,7 +63,7 @@ class CPU(Thread):
                 "+=================+" + "==========================+\n"\
                 "| AX |  " + bfmt(self.AX) + "  | SP |  " + sp + "  |\n"\
                 "+-----------------+" + "--------------------------+\n"\
-                "|  X |  " + bfmt(self.X) + "  | PC |           " + pc + "  |\n"\
+                "|  X |  " + bfmt(self.X) + "  | PC |  " + pc[:8] + " " + pc[8:] + "  |\n"\
                 "+-----------------+" + "--------------------------+\n"\
                 "|  Y |  " + bfmt(self.Y) + "  | Flags |        " + flg + "  |\n"\
                 "+=================+" + "================||||||||==+\n"\
@@ -87,12 +87,12 @@ class CPU(Thread):
                 self.tick()
 
     def tick(self):
-        clear()
-        print(self)
-
         self.PC += self.offset
         index = self.PC
         self.offset = 0
+
+        clear()
+        print(self)
 
         self.decode_instruction(self.rom[index:index+3])
         self.PC += 1
@@ -115,52 +115,65 @@ class CPU(Thread):
 
     def decode_instruction(self, instruction):
         try:
-            tmp = instruction[0]
+            opcode = instruction[0]
             print("Current instruction: 0x", end='')
             print(hfmt(instruction[0]))
 
             #           LDA Immediate
-            if instruction[0] == 0xa9:
+            if opcode == 0xa9:
                 self.lda_im(instruction[1])
             #           LDX Immediate
-            if instruction[0] == 0xa2:
+            if opcode == 0xa2:
                 self.ldx_im(instruction[1])
             #           STA Absolute
-            if instruction[0] == 0x8d:
+            if opcode == 0x8d:
                 self.sta_abs(instruction[1] + instruction[2])
             #           STA Zero Page
-            if instruction[0] == 0x85:
+            if opcode == 0x85:
                 self.sta_zp(instruction[1])
             #           STX Absolute
-            if instruction[0] == 0x8e:
+            if opcode == 0x8e:
                 self.stx_abs(instruction[1] + instruction[2])
             #           TAX Implied
-            if instruction[0] == 0xaa:
+            if opcode == 0xaa:
                 self.tax()
             #           INX Implied
-            if instruction[0] == 0xe8:
+            if opcode == 0xe8:
                 self.inx()
             #           DEX Implied
-            if instruction[0] == 0xca:
+            if opcode == 0xca:
                 self.dex()
             #           ADC Immediate
-            if instruction[0] == 0x69:
+            if opcode == 0x69:
                 self.adc_im(instruction[1])
             #           ADC Zero Page
-            if instruction[0] == 0x65:
+            if opcode == 0x65:
                 self.adc_zp(instruction[1])
             #           BRK Implied
-            if instruction[0] == 0x00:
+            if opcode == 0x00:
                 self.brk()
             #           BNE Relative
-            if instruction[0] == 0xd0:
+            if opcode == 0xd0:
                 self.bne(instruction[1])
+            #           CMP Immediate
+            if opcode == 0xc9:
+                self.cmp_im(instruction[1])
             #           CPX Immediate
-            if instruction[0] == 0xe0:
+            if opcode == 0xe0:
                 self.cpx_im(instruction[1])
+            #           JMP Indirect
+            if opcode == 0x6c:
+                self.jmp_ind(instruction[1] + instruction[2])
 
         except IndexError:
+            # Stop running and set the break flag
             self.running = False
+            self.flags = self.flags ^ 0b00010000
+
+            # Refresh UI
+            clear()
+            print(self)
+
             print("End of ROM")
             input("Press <Enter> to exit...")
             exit()
@@ -200,7 +213,7 @@ class CPU(Thread):
     # - LDA - Load Accumulator -
     # Immediate
     def lda_im(self, val):
-        print("LDA #0x" + hfmt(val))
+        print("LDA #$" + hfmt(val))
 
         self.AX = val
         # Set zero flag
@@ -213,7 +226,7 @@ class CPU(Thread):
     # - LDX - Load X Register
     # Immediate
     def ldx_im(self, val):
-        print("LDX #0x" + hfmt(val))
+        print("LDX #$" + hfmt(val))
 
         self.X = val
         # Set zero flag
@@ -226,14 +239,14 @@ class CPU(Thread):
     # - STA - Store Accumulator
     # Absolute
     def sta_abs(self, addr):
-        print("STA $0x" + hfmt(addr, 4))
+        print("STA $" + hfmt(addr, 4))
 
         self.ram.write(addr, self.AX)
         self.offset += 2
 
     # Zero Page
     def sta_zp(self, addr):
-        print("STA $0x" + hfmt(addr, 2))
+        print("STA $" + hfmt(addr, 2))
 
         self.ram.write(addr, self.AX)
         self.offset += 1
@@ -241,7 +254,7 @@ class CPU(Thread):
     # - STX - Store X Register
     # Absolute
     def stx_abs(self, addr):
-        print("STX $0x" + hfmt(addr, 4))
+        print("STX $" + hfmt(addr, 4))
 
         self.ram.write(addr, self.X)
         self.offset += 2
@@ -282,7 +295,7 @@ class CPU(Thread):
     # - ADC - Add with Carry
     # Immediate
     def adc_im(self, val):
-        print("ADC #0x" + hfmt(val, 2))
+        print("ADC #$" + hfmt(val, 2))
 
         result = self.AX + val
         result_8 = result - 0b100000000
@@ -301,7 +314,7 @@ class CPU(Thread):
 
     # Zero Page
     def adc_zp(self, addr):
-        print("ADC $0x" + hfmt(addr, 2))
+        print("ADC $" + hfmt(addr, 2))
 
         val = self.ram.read(addr)
 
@@ -338,24 +351,46 @@ class CPU(Thread):
     # - BNE - Branch if Not Equal
     # Relative
     def bne(self, addr):
-        print("BNE $0x" + hfmt(addr))
+        print("BNE $" + hfmt(addr))
 
         # If zero bit is clear add relative displacement
         if not (self.flags & 0b00000010):
             # If number is negative subtract it's two's complement
-            if not (addr & 0x10000000):
+            if addr & 0b10000000:
                 num = decomp(addr)
                 self.PC -= num
             # If number is positive add it to the program counter
             else:
-                self.PC += addr
+                self.PC += (addr + 1)
         else:
             self.offset += 1
+
+    # - CMP - Compare
+    # Immediate
+    def cmp_im(self, val):
+        print("CMP #$" + hfmt(val))
+
+        # If value of AX is greater than passed value, set carry flag
+        if self.AX >= val:
+            self.flags = self.flags | 0b00000001
+        else:
+            self.flags = self.flags & 0b11111110
+
+        # If value of AX is equal to passed value, set zero flag
+        if self.AX == val:
+            self.flags = self.flags | 0b00000010
+        else:
+            self.flags = self.flags & 0b11111101
+
+        # If bit 7 of the result is set, set negative flag
+        self.negative_check(self.AX)
+
+        self.offset += 1
 
     # - CPX - Compare X Register
     # Immediate
     def cpx_im(self, val):
-        print("CPX #0x" + hfmt(val))
+        print("CPX #$" + hfmt(val))
 
         # If value of X is greater than passed value, set carry flag
         if self.X >= val:
@@ -373,6 +408,18 @@ class CPU(Thread):
         self.negative_check(self.X)
 
         self.offset += 1
+
+    # - JMP - Jump
+    # Indirect
+    def jmp_ind(self, ind_addr):
+        print("JMP ($" + hfmt(ind_addr, 4) + ")")
+
+        # Fetch the target address
+        addr = "0x" + hfmt(self.ram.read(ind_addr + 1)) + hfmt(self.ram.read(ind_addr))
+        addr = int(addr, 16)
+
+        # Set the program counter to that address
+        self.PC = addr
 
 
 if __name__ == "__main__":
