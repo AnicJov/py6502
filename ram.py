@@ -11,7 +11,6 @@ class RAM(Thread):
         self.data_width = data_width
         self.address_space = address_space
 
-        self.stack = []
         self.heap = []
 
         self.init_heap()
@@ -20,17 +19,25 @@ class RAM(Thread):
         stack = []
         for i in range(0, 4):
             try:
-                stack.append(self.stack[i])
+                stack.append(self.heap[0x01ff - i])
             except IndexError:
                 stack.append("    /   ")
                 continue
 
+        heap = []
+        for i in range(0, 4):
+            try:
+                heap.append(self.heap[i])
+            except IndexError:
+                heap.append("    /   ")
+                continue
+
         state = "+=======================================+\n"\
-                "| " + bfmt(stack[0]) + "  |  " + bfmt(stack[1]) + "   |  " + bfmt(stack[3]) + "   |\n"\
+                "| " + bfmt(stack[0]) + "  |  " + bfmt(stack[1]) + "   |  " + bfmt(stack[2]) + "   |\n"\
                 "+=======================================+\n"\
                 "|  Stack ↑        |RAM|        Heap ↓   |\n"\
                 "+=======================================+\n"\
-                "|                                       |\n"\
+                "| " + bfmt(heap[0]) + "  |  " + bfmt(heap[1]) + "   |  " + bfmt(heap[2]) + "   |\n"\
                 "+=======================================+\n"
         return state
 
@@ -38,11 +45,11 @@ class RAM(Thread):
         for _ in range(0, self.address_space):
             self.heap.append(0b00000000)
 
-    def push(self, data):
-        self.stack.append(data)
+    def push(self, data, sp):
+        self.heap[sp] = data
 
-    def pop(self):
-        return self.stack.pop()
+    def pop(self, sp):
+        return self.heap[sp]
 
     def write(self, addr, data):
         self.heap[addr] = data
@@ -53,8 +60,8 @@ class RAM(Thread):
     def dump_heap(self):
         make_dir("RAM")
         with open("RAM/heap.txt", 'w') as f:
-            for addr in self.heap:
-                f.write(bfmt(addr) + "\n")
+            for addr, val in enumerate(self.heap):
+                f.write("$" + hfmt(addr, 4) + ": " + bfmt(val) + "\n")
 
 
 if __name__ == "__main__":
