@@ -5,7 +5,7 @@ from ram import RAM
 
 class CPU(Thread):
 
-    def __init__(self, mode=0, frequency=1, rom_path="ROM/test12.bin", ram=None):
+    def __init__(self, mode=0, frequency=1, rom_path="ROM/snake.bin", ram=None, console=True):
 
         # -- Threading --
         Thread.__init__(self)
@@ -48,6 +48,7 @@ class CPU(Thread):
         self.rom_path = rom_path            # Path to a ROM
         self.offset = 0                     # Memory offset of the program
         self.rom = None                     # ROM binary information
+        self.console = console
 
         self.load_rom(self.rom_path)        # Sets the rom field to file contents
 
@@ -79,6 +80,8 @@ class CPU(Thread):
     def run(self):
         self.running = True
 
+        self.PC = 0x0600
+
         if self.mode == 0:
             while self.running:
                 freq(self.tick, self.frequency)
@@ -91,10 +94,11 @@ class CPU(Thread):
         index = self.PC
         self.offset = 0
 
-        clear()
-        print(self)
+        if self.console:
+            clear()
+            print(self)
 
-        self.decode_instruction(self.rom[index:index+3])
+        self.decode_instruction(self.ram.heap[index:index+3])
         self.PC += 1
 
         # In case of interrupt
@@ -102,25 +106,33 @@ class CPU(Thread):
             if self.mode != 0:
                 input()
             self.running = False
-            clear()
-            print(self)
+            if self.console:
+                clear()
+                print(self)
             input("<Breakpoint>")
             self.running = True
-            clear()
-            print(self)
+            if self.console:
+                clear()
+                print(self)
         else:
             if self.mode != 0:
                 input()
 
     def load_rom(self, path):
         with open(path, 'rb') as rom:
-            self.rom = rom.read().strip(b'\n')
+            i = 0
+
+            for byte in rom.read():
+                self.ram.write(0x0600 + i, byte)
+                i += 1
 
     def decode_instruction(self, instruction):
         try:
             opcode = instruction[0]
-            print("Current instruction: $", end='')
-            print(hfmt(instruction[0]))
+
+            if self.console:
+                print("Current instruction: $", end='')
+                print(hfmt(instruction[0]))
 
             #           LDA Immediate
             if opcode == 0xa9:
@@ -137,6 +149,27 @@ class CPU(Thread):
             #           LDY Immediate
             if opcode == 0xa0:
                 self.ldy_im(instruction[1])
+            #           LSR Accumulator
+            if opcode == 0x4a:
+                self.lsr_acc()
+            #           LSR Zero Page
+            if opcode == 0x46:
+                self.lsr_zp(instruction[1])
+            #           LSR Absolute
+            if opcode == 0x4e:
+                self.lsr_abs(hcat(instruction[2], instruction[1]))
+            #           SBC Immediate
+            if opcode == 0xe9:
+                self.sbc_im(instruction[1])
+            #           SBC Zero Page
+            if opcode == 0xe5:
+                self.sbc_zp(instruction[1])
+            #           SBC Absolute
+            if opcode == 0xed:
+                self.sbc_abs(hcat(instruction[2], instruction[1]))
+            #           SEC Implied
+            if opcode == 0x38:
+                self.sec()
             #           STA Zero Page
             if opcode == 0x85:
                 self.sta_zp(instruction[1])
@@ -167,21 +200,51 @@ class CPU(Thread):
             #           INY Implied
             if opcode == 0xc8:
                 self.iny()
+            #           DEC Zero Page
+            if opcode == 0xc6:
+                self.dec_zp(instruction[1])
+            #           DEC Absolute
+            if opcode == 0xce:
+                self.dec_abs(hcat(instruction[2], instruction[1]))
             #           DEX Implied
             if opcode == 0xca:
                 self.dex()
+            #           AND Immediate
+            if opcode == 0x29:
+                self.and_im(instruction[1])
             #           ADC Immediate
             if opcode == 0x69:
                 self.adc_im(instruction[1])
             #           ADC Zero Page
             if opcode == 0x65:
                 self.adc_zp(instruction[1])
+            #           BIT Zero Page
+            if opcode == 0x24:
+                self.bit_zp(instruction[1])
+            #           BIT Absolute
+            if opcode == 0x2c:
+                self.bit_abs(hcat(instruction[2], instruction[1]))
             #           BRK Implied
             if opcode == 0x00:
                 self.brk()
+            #           BCC Relative
+            if opcode == 0x90:
+                self.bcc(instruction[1])
+            #           BCS Relative
+            if opcode == 0xb0:
+                self.bcs(instruction[1])
+            #           BEQ Relative
+            if opcode == 0xf0:
+                self.beq(instruction[1])
             #           BNE Relative
             if opcode == 0xd0:
                 self.bne(instruction[1])
+            #           BRL Relative
+            if opcode == 0x10:
+                self.bpl(instruction[1])
+            #           CLC Implied
+            if opcode == 0x18:
+                self.clc()
             #           CMP Immediate
             if opcode == 0xc9:
                 self.cmp_im(instruction[1])
@@ -323,6 +386,102 @@ class CPU(Thread):
 
         self.offset += 1
 
+    # - LSR - Logical Shift Right
+    # Accumulator
+    def lsr_acc(self):
+        print("LSR")
+
+        self.flags = set_bit(self.flags, 0, check_bit(self.AX, 0))
+        self.AX = self.AX >> 1
+
+    # Zero Page
+    def lsr_zp(self, addr):
+        print("LSR $" + hfmt(addr))
+
+        val = self.ram.read(addr)
+
+        self.flags = set_bit(self.flags, 0, check_bit(val, 0))
+        self.ram.write(addr, val >> 1)
+
+        self.offset += 1
+
+    # Absolute
+    def lsr_abs(self, addr):
+        print("LSR $" + hfmt(addr, 4))
+
+        val = self.ram.read(addr)
+
+        self.flags = set_bit(self.flags, 0, check_bit(val, 0))
+        self.ram.write(addr, val >> 1)
+
+        self.offset += 2
+
+    # - SBC - Subtract with Carry
+    # Immediate
+    # TODO: Catch underflow
+    def sbc_im(self, val):
+        print("SBC #$" + hfmt(val, 2))
+
+        result = self.AX - val
+
+        # Set carry flag
+        self.carry_check(result)
+        # Set zero flag
+        self.zero_check(result)
+        # Set overflow flag
+        self.overflow_check(self.AX, val)
+        # Set negative flag
+        self.negative_check(result)
+
+        self.AX = result
+        self.offset += 1
+
+    # Zero Page
+    # TODO: Catch underflow
+    def sbc_zp(self, addr):
+        print("SBC $" + hfmt(addr))
+
+        val = self.ram.read(addr)
+        result = self.AX - val
+
+        # Set carry flag
+        self.carry_check(result)
+        # Set zero flag
+        self.zero_check(result)
+        # Set overflow flag
+        self.overflow_check(self.AX, val)
+        # Set negative flag
+        self.negative_check(result)
+
+        self.AX = result
+        self.offset += 1
+
+    # Absolute
+    # TODO: Catch underflow
+    def sbc_abs(self, addr):
+        print("SBC $" + hfmt(addr, 4))
+
+        val = self.ram.read(addr)
+        result = self.AX - val
+
+        # Set carry flag
+        self.carry_check(result)
+        # Set zero flag
+        self.zero_check(result)
+        # Set overflow flag
+        self.overflow_check(self.AX, val)
+        # Set negative flag
+        self.negative_check(result)
+
+        self.AX = result
+        self.offset += 2
+
+    # - SEC - Set Carry Flag
+    def sec(self):
+        print("SEC")
+
+        self.flags = set_bit(self.flags, 0, 1)
+
     # - STA - Store Accumulator
     # Zero Page
     def sta_zp(self, addr):
@@ -425,6 +584,23 @@ class CPU(Thread):
         # Set negative flag
         self.negative_check(self.Y)
 
+    # - DEC - Decrement Memory
+    # Zero Page
+    def dec_zp(self, addr):
+        print("DEC $" + hfmt(addr))
+
+        self.ram.write(addr, self.ram.read(addr) - 1)
+
+        self.offset += 1
+
+    # Absolute
+    def dec_abs(self, addr):
+        print("DEC $" + hfmt(addr, 4))
+
+        self.ram.write(addr, self.ram.read(addr) - 1)
+
+        self.offset += 2
+
     # - DEX - Decrement X Register
     # Implied
     def dex(self):
@@ -435,6 +611,18 @@ class CPU(Thread):
         self.zero_check(self.X)
         # Set negative flag
         self.negative_check(self.X)
+
+    # - AND - Logical AND
+    # Immediate
+    def and_im(self, val):
+        print("AND $" + hfmt(val))
+
+        self.AX = self.AX & val
+
+        self.zero_check(self.AX)
+        self.negative_check(self.AX)
+
+        self.offset += 1
 
     # - ADC - Add with Carry
     # Immediate
@@ -477,6 +665,39 @@ class CPU(Thread):
         self.AX = result_8
         self.offset += 1
 
+    # - BIT - Bit Test
+    # Zero Page
+    def bit_zp(self, addr):
+        print("BIT $" + hfmt(addr))
+
+        val = self.ram.read(addr)
+
+        if self.AX & val == 0:
+            self.flags = set_bit(self.flags, 2, 1)
+        else:
+            self.flags = set_bit(self.flags, 2, 0)
+
+        self.flags = set_bit(self.flags, 6, check_bit(val, 6))
+        self.flags = set_bit(self.flags, 7, check_bit(val, 7))
+
+        self.offset += 1
+
+    # Absolute
+    def bit_abs(self, addr):
+        print("BIT $" + hfmt(addr, 4))
+
+        val = self.ram.read(addr)
+
+        if self.AX & val == 0:
+            self.flags = set_bit(self.flags, 2, 1)
+        else:
+            self.flags = set_bit(self.flags, 2, 0)
+
+        self.flags = set_bit(self.flags, 6, check_bit(val, 6))
+        self.flags = set_bit(self.flags, 7, check_bit(val, 7))
+
+        self.offset += 2
+
     # - BRK - Force Interrupt
     # Implied
     def brk(self):
@@ -497,6 +718,56 @@ class CPU(Thread):
         # Set break flag
         self.flags = set_bit(self.flags, 4, 1)
 
+    # - BCC - Branch if Carry Clear
+    def bcc(self, addr):
+        print("BCC $" + hfmt(addr))
+
+        # If carry bit is clear add relative displacement
+        if not check_bit(self.flags, 0):
+            # If number is negative subtract it's two's complement
+            if check_bit(addr, 7):
+                num = decomp(addr)
+                self.PC -= num
+            # If number is positive add it to the program counter
+            else:
+                self.PC += (addr + 1)
+        else:
+            self.offset += 1
+
+    # - BCS - Branch if Carry Set
+    # Relative
+    def bcs(self, addr):
+        print("BCS $" + hfmt(addr))
+
+        # If carry bit is set add relative displacement
+        if check_bit(self.flags, 0):
+            # If number is negative subtract it's two's complement
+            if check_bit(addr, 7):
+                num = decomp(addr)
+                self.PC -= num
+            # If number is positive add it to the program counter
+            else:
+                self.PC += (addr + 1)
+        else:
+            self.offset += 1
+
+    # - BEQ - Branch if Equal
+    # Relative
+    def beq(self, addr):
+        print("BEQ $" + hfmt(addr))
+
+        # If zero bit is set add relative displacement
+        if check_bit(self.flags, 1):
+            # If number is negative subtract it's two's complement
+            if check_bit(addr, 7):
+                num = decomp(addr)
+                self.PC -= num
+            # If number is positive add it to the program counter
+            else:
+                self.PC += (addr + 1)
+        else:
+            self.offset += 1
+
     # - BNE - Branch if Not Equal
     # Relative
     def bne(self, addr):
@@ -513,6 +784,30 @@ class CPU(Thread):
                 self.PC += (addr + 1)
         else:
             self.offset += 1
+
+    # - BPL - Branch if Positive
+    # Relative
+    def bpl(self, addr):
+        print("BPL $" + hfmt(addr))
+
+        # If negative bit is clear add relative displacement
+        if not check_bit(self.flags, 7):
+            # If number is negative subtract it's two's complement
+            if check_bit(addr, 7):
+                num = decomp(addr)
+                self.PC -= num
+            # If number is positive add it to the program counter
+            else:
+                self.PC += (addr + 1)
+        else:
+            self.offset += 1
+
+    # - CLC - Clear Carry Flag
+    # Implied
+    def clc(self):
+        print("CLC")
+
+        self.flags = set_bit(self.flags, 1, 0)
 
     # - CMP - Compare
     # Immediate
@@ -625,14 +920,3 @@ class CPU(Thread):
 
         self.AX = self.ram.pop(self.SP + 1)
         self.SP += 1
-
-
-if __name__ == "__main__":
-    cpu = CPU(mode=1, frequency=0)
-    clear()
-    print(cpu)
-    print("6502 Emulator by Andrija Jovanovic\n")
-    print("Running ROM:")
-    print(cpu.rom_path, "-", cpu.rom)
-    input("\nPress <Enter> to start...")
-    cpu.run()

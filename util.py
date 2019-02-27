@@ -7,6 +7,8 @@ def bprint(num):
 
 
 def bfmt(num, size=8):
+    if num > 2**size:
+        return format((num >> size) & (2**size - 1), 'b').zfill(size)
     try:
         return format(num, 'b').zfill(size)
     except ValueError:
