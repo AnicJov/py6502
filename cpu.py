@@ -137,6 +137,9 @@ class CPU(Thread):
             #           LDA Immediate
             if opcode == 0xa9:
                 self.lda_im(instruction[1])
+            #           LDA Zero Page
+            if opcode == 0xa5:
+                self.lda_zp(instruction[1])
             #           LDA Indirect,X
             if opcode == 0xa1:
                 self.lda_indx(instruction[1])
@@ -307,7 +310,6 @@ class CPU(Thread):
             self.flags = set_bit(self.flags, 0, 0)
 
     def overflow_check(self, val1, val2):
-        print(val1, val2)
         val_sum = val1 + val2
         if check_bit(val1, 7) and check_bit(val2, 7) and (not check_bit(val_sum, 7)):
             self.flags = set_bit(self.flags, 6)
@@ -324,10 +326,23 @@ class CPU(Thread):
         print("LDA #$" + hfmt(val))
 
         self.AX = val
+
         # Set zero flag
         self.zero_check(val)
         # Set negative flag
         self.negative_check(val)
+
+        self.offset += 1
+
+    def lda_zp(self, addr):
+        print("LDA $" + hfmt(addr))
+
+        self.AX = self.ram.read(addr)
+
+        # Set zero flag
+        self.zero_check(self.AX)
+        # Set negative flag
+        self.negative_check(self.AX)
 
         self.offset += 1
 
@@ -624,6 +639,7 @@ class CPU(Thread):
 
         self.offset += 1
 
+    # TODO: Fix wrapping around
     # - ADC - Add with Carry
     # Immediate
     def adc_im(self, val):
@@ -899,6 +915,7 @@ class CPU(Thread):
         self.ram.push(self.PC + 2, self.SP)
         self.PC = addr - 1
 
+    # TODO: Fix nested JSR/RTS
     # - RTS - Return from Subroutine
     def rts(self):
         print("RTS")

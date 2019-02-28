@@ -5,13 +5,16 @@ import sys
 
 
 def main():
+    mode = 1
+    frequency = 0
+
     if len(sys.argv) >= 2:
         if sys.argv[1] == "noconsole":
-            cpu = CPU(mode=0, frequency=0, console=False)
+            cpu = CPU(mode=mode, frequency=frequency, console=False)
         else:
             cpu = None
     else:
-        cpu = CPU(mode=0, frequency=0, console=True)
+        cpu = CPU(mode=mode, frequency=frequency, console=True)
 
     ppu = PPU(cpu)
     ppu.start()
