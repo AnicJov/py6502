@@ -1,6 +1,6 @@
 from util import *
 from threading import Thread
-import string
+import binascii
 
 
 class RAM(Thread):
@@ -60,13 +60,9 @@ class RAM(Thread):
 
     def dump_heap(self):
         make_dir("RAM")
-        with open("RAM/heap.txt", 'w') as f:
+        with open("RAM/heap.txt", 'w', encoding="utf-8") as f:
             for addr, val in enumerate(self.heap):
-                #try:
-                    f.write("0x" + hfmt(addr, 4) + ": 0x" + hfmt(val) + " 0b" + bfmt(val) + " " +
-                            string.decode(val) + "\n")
-                #except UnicodeEncodeError:
-                    f.write("0x" + hfmt(addr, 4) + ": 0x" + hfmt(val) + " 0b" + bfmt(val) + " ." + "\n")
+                f.write("0x" + hfmt(addr, 4) + ": 0x" + hfmt(val) + " 0b" + bfmt(val) + "\n")
 
 
 if __name__ == "__main__":
