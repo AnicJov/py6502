@@ -73,7 +73,7 @@ class CPU(Thread):
 
         # | Uncomment for a memory dump in case of debugging
         # v
-        # self.ram.dump_heap()
+        self.ram.dump_heap()
 
         return state + "\n" + str(self.ram)
 

@@ -16,8 +16,9 @@ def main():
     else:
         cpu = CPU(mode=mode, frequency=frequency, console=True)
 
-    ppu = PPU(cpu)
-    ppu.start()
+    if sys.platform == "win32":
+        ppu = PPU(cpu)
+        ppu.start()
 
     clear()
     print(cpu)
