@@ -1,6 +1,7 @@
 from util import *
 from threading import Thread
 from ram import RAM
+from random import randint
 
 
 class CPU(Thread):
@@ -73,7 +74,7 @@ class CPU(Thread):
 
         # | Uncomment for a memory dump in case of debugging
         # v
-        self.ram.dump_heap()
+        # self.ram.dump_heap()
 
         return state + "\n" + str(self.ram)
 
@@ -90,15 +91,25 @@ class CPU(Thread):
                 self.tick()
 
     def tick(self):
+        # Generate random number in memory location 0xFE for use in programs
+        self.ram.write(0xfe, randint(0, 255))
+
+        self.ram.write(0xff, 0x77)
+
+        # Offset the program counter
         self.PC += self.offset
         index = self.PC
         self.offset = 0
 
+        # Print UI into console
         if self.console:
             clear()
             print(self)
 
+        # Run instructions
         self.decode_instruction(self.ram.heap[index:index+3])
+
+        # Progress the program counter
         self.PC += 1
 
         # In case of interrupt
@@ -134,12 +145,18 @@ class CPU(Thread):
                 print("Current instruction: $", end='')
                 print(hfmt(instruction[0]))
 
+            #           NOP Implied
+            if opcode == 0xea:
+                self.nop()
             #           LDA Immediate
             if opcode == 0xa9:
                 self.lda_im(instruction[1])
             #           LDA Zero Page
             if opcode == 0xa5:
                 self.lda_zp(instruction[1])
+            #           LDA Zero Page,X
+            if opcode == 0xb5:
+                self.lda_zpx(instruction[1])
             #           LDA Indirect,X
             if opcode == 0xa1:
                 self.lda_indx(instruction[1])
@@ -149,6 +166,9 @@ class CPU(Thread):
             #           LDX Immediate
             if opcode == 0xa2:
                 self.ldx_im(instruction[1])
+            #           LDX Zero Page
+            if opcode == 0xa6:
+                self.ldx_zp(instruction[1])
             #           LDY Immediate
             if opcode == 0xa0:
                 self.ldy_im(instruction[1])
@@ -176,6 +196,9 @@ class CPU(Thread):
             #           STA Zero Page
             if opcode == 0x85:
                 self.sta_zp(instruction[1])
+            #           STA Zero Page,X
+            if opcode == 0x95:
+                self.sta_zpx(instruction[1])
             #           STA Absolute
             if opcode == 0x8d:
                 self.sta_abs(hcat(instruction[2], instruction[1]))
@@ -185,6 +208,9 @@ class CPU(Thread):
             #           STA Indirect,X
             if opcode == 0x81:
                 self.sta_indx(instruction[1])
+            #           STA Indirect,Y
+            if opcode == 0x91:
+                self.sta_indy(instruction[1])
             #           STX Absolute
             if opcode == 0x8e:
                 self.stx_abs(hcat(instruction[2], instruction[1]))
@@ -197,6 +223,9 @@ class CPU(Thread):
             #           TXA Implied
             if opcode == 0x8a:
                 self.txa()
+            #           INC Zero Page
+            if opcode == 0xe6:
+                self.inc_zp(instruction[1])
             #           INX Implied
             if opcode == 0xe8:
                 self.inx()
@@ -251,9 +280,15 @@ class CPU(Thread):
             #           CMP Immediate
             if opcode == 0xc9:
                 self.cmp_im(instruction[1])
+            #           CMP Zero Page
+            if opcode == 0xc5:
+                self.cmp_zp(instruction[1])
             #           CPX Immediate
             if opcode == 0xe0:
                 self.cpx_im(instruction[1])
+            #           CPX Zero Page
+            if opcode == 0xe4:
+                self.cpx_zp(instruction[1])
             #           CPY Immediate
             if opcode == 0xc0:
                 self.cpy_im(instruction[1])
@@ -320,6 +355,10 @@ class CPU(Thread):
 
     # -- Instructions --
 
+    # - NOP - No Operation
+    def nop(self):
+        print("NOP")
+
     # - LDA - Load Accumulator -
     # Immediate
     def lda_im(self, val):
@@ -334,8 +373,28 @@ class CPU(Thread):
 
         self.offset += 1
 
+    # Zero Page
     def lda_zp(self, addr):
         print("LDA $" + hfmt(addr))
+
+        self.AX = self.ram.read(addr)
+
+        # Set zero flag
+        self.zero_check(self.AX)
+        # Set negative flag
+        self.negative_check(self.AX)
+
+        self.offset += 1
+
+    # Zero Page,X
+    def lda_zpx(self, ind_addr):
+        print("LDA $" + hfmt(ind_addr) + ",X")
+
+        # Get absolute address
+        if ind_addr + self.X > 255:
+            addr = ind_addr + self.X
+        else:
+            addr = ind_addr + self.X - 255
 
         self.AX = self.ram.read(addr)
 
@@ -379,6 +438,20 @@ class CPU(Thread):
     # Immediate
     def ldx_im(self, val):
         print("LDX #$" + hfmt(val))
+
+        self.X = val
+        # Set zero flag
+        self.zero_check(val)
+        # Set negative flag
+        self.negative_check(val)
+
+        self.offset += 1
+
+    # Zero Page
+    def ldx_zp(self, addr):
+        print("LDX $" + hfmt(addr))
+
+        val = self.ram.read(addr)
 
         self.X = val
         # Set zero flag
@@ -433,11 +506,10 @@ class CPU(Thread):
 
     # - SBC - Subtract with Carry
     # Immediate
-    # TODO: Catch underflow
     def sbc_im(self, val):
         print("SBC #$" + hfmt(val, 2))
 
-        result = self.AX - val
+        result = bsub(self.AX, val)
 
         # Set carry flag
         self.carry_check(result)
@@ -452,12 +524,11 @@ class CPU(Thread):
         self.offset += 1
 
     # Zero Page
-    # TODO: Catch underflow
     def sbc_zp(self, addr):
         print("SBC $" + hfmt(addr))
 
         val = self.ram.read(addr)
-        result = self.AX - val
+        result = bsub(self.AX, val)
 
         # Set carry flag
         self.carry_check(result)
@@ -472,12 +543,11 @@ class CPU(Thread):
         self.offset += 1
 
     # Absolute
-    # TODO: Catch underflow
     def sbc_abs(self, addr):
         print("SBC $" + hfmt(addr, 4))
 
         val = self.ram.read(addr)
-        result = self.AX - val
+        result = bsub(self.AX, val)
 
         # Set carry flag
         self.carry_check(result)
@@ -501,6 +571,19 @@ class CPU(Thread):
     # Zero Page
     def sta_zp(self, addr):
         print("STA $" + hfmt(addr, 2))
+
+        self.ram.write(addr, self.AX)
+        self.offset += 1
+
+    # Zero Page,X
+    def sta_zpx(self, ind_addr):
+        print("STA $" + hfmt(ind_addr, 2))
+
+        # Get absolute address
+        if ind_addr + self.X > 255:
+            addr = ind_addr + self.X
+        else:
+            addr = ind_addr + self.X - 255
 
         self.ram.write(addr, self.AX)
         self.offset += 1
@@ -539,6 +622,18 @@ class CPU(Thread):
 
         self.offset += 1
 
+    # (Indirect),Y
+    def sta_indy(self, ind_addr):
+        print("STA ($" + hfmt(ind_addr) + "),Y")
+
+        # Get absolute address
+        addr = hcat(self.ram.read(ind_addr + 1), self.ram.read(ind_addr)) + self.Y
+
+        # Store value of A into memory
+        self.ram.write(addr, self.AX)
+
+        self.offset += 1
+
     # - STX - Store X Register
     # Absolute
     def stx_abs(self, addr):
@@ -572,17 +667,35 @@ class CPU(Thread):
         print("TXA")
 
         self.AX = self.X
+
         # Set zero flag
         self.zero_check(self.AX)
         # Set negative flag
         self.negative_check(self.AX)
+
+    # - INC - Increment Memory
+    # Zero Page
+    def inc_zp(self, addr):
+        print("INC $" + hfmt(addr))
+
+        val = badd(self.ram.read(addr), 1)
+
+        self.ram.write(addr, val)
+
+        # Set zero flag
+        self.zero_check(val)
+        # Set negative flag
+        self.negative_check(val)
+
+        self.offset += 1
 
     # - INX - Increment X Register
     # Implied
     def inx(self):
         print("INX")
 
-        self.X += 1
+        self.X = badd(self.X, 1)
+
         # Set zero flag
         self.zero_check(self.X)
         # Set negative flag
@@ -593,7 +706,8 @@ class CPU(Thread):
     def iny(self):
         print("INY")
 
-        self.Y += 1
+        self.Y = badd(self.Y, 1)
+
         # Set zero flag
         self.zero_check(self.Y)
         # Set negative flag
@@ -604,7 +718,12 @@ class CPU(Thread):
     def dec_zp(self, addr):
         print("DEC $" + hfmt(addr))
 
-        self.ram.write(addr, self.ram.read(addr) - 1)
+        val = self.ram.read(addr) - 1
+
+        if val < 0:
+            self.ram.write(addr, 255)
+        else:
+            self.ram.write(addr, val)
 
         self.offset += 1
 
@@ -612,7 +731,12 @@ class CPU(Thread):
     def dec_abs(self, addr):
         print("DEC $" + hfmt(addr, 4))
 
-        self.ram.write(addr, self.ram.read(addr) - 1)
+        val = self.ram.read(addr) - 1
+
+        if val < 0:
+            self.ram.write(addr, 255)
+        else:
+            self.ram.write(addr, val)
 
         self.offset += 2
 
@@ -621,7 +745,11 @@ class CPU(Thread):
     def dex(self):
         print("DEX")
 
-        self.X -= 1
+        if self.X - 1 < 0:
+            self.X = 255
+        else:
+            self.X -= 1
+
         # Set zero flag
         self.zero_check(self.X)
         # Set negative flag
@@ -639,25 +767,23 @@ class CPU(Thread):
 
         self.offset += 1
 
-    # TODO: Fix wrapping around
     # - ADC - Add with Carry
     # Immediate
     def adc_im(self, val):
         print("ADC #$" + hfmt(val, 2))
 
-        result = self.AX + val
-        result_8 = result - 0b100000000
+        result = badd(self.AX, val)
 
         # Set carry flag
-        self.carry_check(result)
+        self.carry_check(self.AX + val)
         # Set zero flag
-        self.zero_check(result_8)
+        self.zero_check(result)
         # Set overflow flag
         self.overflow_check(self.AX, val)
         # Set negative flag
-        self.negative_check(result_8)
+        self.negative_check(result)
 
-        self.AX = result_8
+        self.AX = result
         self.offset += 1
 
     # Zero Page
@@ -666,19 +792,18 @@ class CPU(Thread):
 
         val = self.ram.read(addr)
 
-        result = self.AX + val
-        result_8 = result - 0b100000000
+        result = badd(self.AX, val)
 
         # Set carry flag
-        self.carry_check(result)
+        self.carry_check(self.AX + val)
         # Set zero flag
-        self.zero_check(result_8)
+        self.zero_check(result)
         # Set overflow flag
         self.overflow_check(self.AX, val)
         # Set negative flag
-        self.negative_check(result_8)
+        self.negative_check(result)
 
-        self.AX = result_8
+        self.AX = result
         self.offset += 1
 
     # - BIT - Bit Test
@@ -689,9 +814,9 @@ class CPU(Thread):
         val = self.ram.read(addr)
 
         if self.AX & val == 0:
-            self.flags = set_bit(self.flags, 2, 1)
+            self.flags = set_bit(self.flags, 1, 1)
         else:
-            self.flags = set_bit(self.flags, 2, 0)
+            self.flags = set_bit(self.flags, 1, 0)
 
         self.flags = set_bit(self.flags, 6, check_bit(val, 6))
         self.flags = set_bit(self.flags, 7, check_bit(val, 7))
@@ -823,7 +948,7 @@ class CPU(Thread):
     def clc(self):
         print("CLC")
 
-        self.flags = set_bit(self.flags, 1, 0)
+        self.flags = set_bit(self.flags, 0, 0)
 
     # - CMP - Compare
     # Immediate
@@ -847,10 +972,56 @@ class CPU(Thread):
 
         self.offset += 1
 
+    # Zero Page
+    def cmp_zp(self, addr):
+        print("CMP $" + hfmt(addr))
+
+        val = self.ram.read(addr)
+
+        # If value of AX is greater than passed value, set carry flag
+        if self.AX >= val:
+            self.flags = set_bit(self.flags, 0, 1)
+        else:
+            self.flags = set_bit(self.flags, 0, 0)
+
+        # If value of AX is equal to passed value, set zero flag
+        if self.AX == val:
+            self.flags = set_bit(self.flags, 1, 1)
+        else:
+            self.flags = set_bit(self.flags, 1, 0)
+
+        # If bit 7 of the result is set, set negative flag
+        self.negative_check(self.AX)
+
+        self.offset += 1
+
     # - CPX - Compare X Register
     # Immediate
     def cpx_im(self, val):
         print("CPX #$" + hfmt(val))
+
+        # If value of X is greater than passed value, set carry flag
+        if self.X >= val:
+            self.flags = set_bit(self.flags, 0, 1)
+        else:
+            self.flags = set_bit(self.flags, 0, 0)
+
+        # If value of X is equal to passed value, set zero flag
+        if self.X == val:
+            self.flags = set_bit(self.flags, 1, 1)
+        else:
+            self.flags = set_bit(self.flags, 1, 0)
+
+        # If bit 7 of the result is set, set negative flag
+        self.negative_check(self.X)
+
+        self.offset += 1
+
+    # Zero Page
+    def cpx_zp(self, addr):
+        print("CPX $" + hfmt(addr))
+
+        val = self.ram.read(addr)
 
         # If value of X is greater than passed value, set carry flag
         if self.X >= val:
@@ -914,12 +1085,14 @@ class CPU(Thread):
 
         self.ram.push(self.PC + 2, self.SP)
         self.PC = addr - 1
+        self.SP -= 1
 
     # TODO: Fix nested JSR/RTS
     # - RTS - Return from Subroutine
     def rts(self):
         print("RTS")
 
+        self.SP += 1
         self.PC = self.ram.pop(self.SP)
 
     # - PHA - Push Accumulator

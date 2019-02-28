@@ -50,7 +50,9 @@ class RAM(Thread):
         self.heap[sp] = data
 
     def pop(self, sp):
-        return self.heap[sp]
+        val = self.heap[sp]
+        self.heap[sp] = 0b00000000
+        return val
 
     def write(self, addr, data):
         self.heap[addr] = data

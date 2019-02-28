@@ -73,6 +73,21 @@ def set_bit(val, n, x=1):
     return val
 
 
+def comp(val, size=8):
+
+    val = list(bin_to_str(val).zfill(size))
+
+    for i in range(0, size):
+        if val[i] == '0':
+            val[i] = '1'
+        else:
+            val[i] = '0'
+
+    val = bin_to_str(int(''.join(val).zfill(size), 2) + 1)
+
+    return int(val[:8])
+
+
 def decomp(val):
     """ Takes in 1's complement binary number
         and returns its positive form """
@@ -84,22 +99,24 @@ def decomp(val):
 
     return val
 
+
 def bin_to_str(val):
     return str(bin(val))[2:]
+
 
 def str_to_bin(string):
     return int(string, 2)
 
-# TODO: Make binary add function
-# TODO: Make binary sub function
 
-""" 
+def bsub(x, y, size=8):
+    return badd(x, comp(y))
 
-def badd(x,y):
-        max_len = max(len(x), len(y))
 
-        x = x.zfill(max_len)
-        y = y.zfill(max_len)
+def badd(x, y, size=8):
+        max_len = size
+
+        x = bin_to_str(x).zfill(max_len)
+        y = bin_to_str(y).zfill(max_len)
 
         result = ''
         carry = 0
@@ -111,8 +128,7 @@ def badd(x,y):
             result = ('1' if r % 2 == 1 else '0') + result
             carry = 0 if r < 2 else 1       
 
-        if carry !=0 : result = '1' + result
+        if carry != 0:
+            result = '1' + result
 
-        return result.zfill(max_len)
-
-"""
+        return int(result.zfill(max_len)[:8], 2)

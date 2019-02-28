@@ -1,19 +1,27 @@
-
-
 from colors import *
 from threading import Thread
 import random
 import numpy as np
 import sys
+import os
+
 if sys.platform == "win32":
-    import pygame
-    from pygame.locals import *
+    with open(os.devnull, 'w') as f:
+        # disable stdout
+        oldstdout = sys.stdout
+        sys.stdout = f
+
+        import pygame
+        from pygame.locals import *
+
+        # enable stdout
+        sys.stdout = oldstdout
 
 
 class PPU(Thread):
     # PyGame template.
 
-    def __init__(self, cpu, scale=10, intensity=16, title="MOS 6502"):
+    def __init__(self, cpu, scale=10, intensity=1, title="MOS 6502"):
         Thread.__init__(self)
 
         self.FPS = None
