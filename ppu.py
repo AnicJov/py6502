@@ -1,10 +1,13 @@
-import pygame
-from pygame.locals import *
+
+
 from colors import *
 from threading import Thread
 import random
-import sys
 import numpy as np
+import sys
+if sys.platform == "win32":
+    import pygame
+    from pygame.locals import *
 
 
 class PPU(Thread):
