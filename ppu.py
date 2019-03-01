@@ -5,6 +5,7 @@ import numpy as np
 import sys
 import os
 
+# Doesn't import pygame if not on windows
 if sys.platform == "win32":
     with open(os.devnull, 'w') as f:
         # disable stdout
@@ -19,7 +20,6 @@ if sys.platform == "win32":
 
 
 class PPU(Thread):
-    # PyGame template.
 
     def __init__(self, cpu, scale=10, intensity=1, title="MOS 6502"):
         Thread.__init__(self)
@@ -73,7 +73,8 @@ class PPU(Thread):
 
         x += v * dt
 
-        and this will scale your velocity based on time. Extend as necessary."""
+        and this will scale your velocity based on time. Extend as necessary.
+        """
 
         # Go through events that are passed to the script by the window.
         for event in pygame.event.get():
@@ -86,6 +87,7 @@ class PPU(Thread):
                 # on other operating systems too, but I don't know for sure.
             # Handle other events as you wish.
 
+        # Reads 32*32 values from memory starting at 0x0200
         self.buffer = []
 
         for i in range(0, 32*32):
@@ -97,7 +99,9 @@ class PPU(Thread):
         """
         self.screen.fill((0, 0, 0))  # Fill the screen with black.
 
-        # Redraw screen here.
+        # Redraw screen here
+
+        # Reshapes buffer to 2D array and draws it to the screen
         buff = np.reshape(self.buffer, (-1, 32))
 
         for y, line in enumerate(buff):

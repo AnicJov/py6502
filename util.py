@@ -3,10 +3,14 @@ import time
 
 
 def bprint(num):
+    """ Prints a binary number <num> """
+
     print("{0:b}".format(num))
 
 
 def bfmt(num, size=8):
+    """ Returns the printable string version of a binary number <num> that's length <size> """
+
     if num > 2**size:
         return format((num >> size) & (2**size - 1), 'b').zfill(size)
     try:
@@ -16,22 +20,33 @@ def bfmt(num, size=8):
 
 
 def hfmt(num, size=2):
+    """ Returns the printable string version of a hex number <num> that's length <size> """
+
     length = '0' + str(size) + 'x'
     return format(num, length)
 
 
-def hcat(num1, num2):
-    """ Concatenates two hex values """
+def hcat(*nums):
+    """ Concatenates hex values together and returns it as an integer """
 
-    return int(hfmt(num1) + hfmt(num2), 16)
+    string = ''
+
+    for num in nums:
+        string += hfmt(num)
+
+    return int(string, 16)
 
 
 def clear():
+    """ Clears the default I/O stream """
+
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
 #      f-tion ref | freq. in Hz
 def freq(function, frequency=1.0):
+    """ Runs <function> at the given <frequency> """
+
     while True:
         start = time.time()
         function()
@@ -45,6 +60,8 @@ def freq(function, frequency=1.0):
 
 
 def make_dir(directory):
+    """ Creates specified <directory> if it doesn't already exist """
+
     if not os.path.exists(directory):
         os.makedirs(directory)
 
@@ -74,17 +91,20 @@ def set_bit(val, n, x=1):
 
 
 def comp(val, size=8):
+    """ Returns the one's complement of a positive number """
+
     return (2**size) - 1 - val
 
 
 def twos_comp(val, size=8):
+    """ Returns the two's complement of a positive number """
+
     val, carry = badd(comp(val, size), 1, size)
     return val
 
 
 def decomp(val):
-    """ Takes in 1's complement binary number
-        and returns its positive form """
+    """ Returns the absolute value of a one's complement negative number """
 
     c = 1
     while val * 2 > c:
@@ -95,12 +115,16 @@ def decomp(val):
 
 
 def twos_decomp(val, size):
+    """ Returns the absolute value of a two's complement negative number """
+
     val = bsub(val, 1, size)
     val = decomp(val)
     return val
 
 
 def badd(x, y, size=8):
+    """ Adds two binary integers of a bit length of <size> using two's complement """
+
     max_num = 2**size - 1
     result = x + y
 
@@ -111,13 +135,19 @@ def badd(x, y, size=8):
 
 
 def bsub(x, y, size=8):
+    """ Subtracts two binary integers of a bit length of <size> using two's complement """
+
     return badd(x, twos_comp(y), size)
 
 
 def bin_to_str(val):
+    """ Converts binary integer to string of 1s and 0s """
+
     return str(bin(val))[2:]
 
 
 def str_to_bin(string):
+    """ Converts string of 1s and 0s to binary integer """
+
     return int(string, 2)
 

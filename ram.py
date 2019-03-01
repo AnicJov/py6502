@@ -1,6 +1,5 @@
 from util import *
 from threading import Thread
-import binascii
 
 
 class RAM(Thread):
@@ -43,24 +42,36 @@ class RAM(Thread):
         return state
 
     def init_heap(self):
+        """ Populates the heap array with zero values up to the length <self.address_space> """
+
         for _ in range(0, self.address_space):
             self.heap.append(0b00000000)
 
     def push(self, data, sp):
+        """ Writes <data> into address that <sp> is pointing to """
+
         self.heap[sp] = data
 
     def pop(self, sp):
+        """ Returns the value at the address that <sp> is pointing to and sets it to zero """
+
         val = self.heap[sp]
         self.heap[sp] = 0b00000000
         return val
 
     def write(self, addr, data):
+        """ Writes <data> in the heap at the specified address <addr> """
+
         self.heap[addr] = data
 
     def read(self, addr):
+        """ Returns the value at the specified address <addr> """
+
         return self.heap[addr]
 
     def dump_heap(self):
+        """ Creates a 'RAM' directory and writes a file 'heap.txt' with all of the memory addresses and contents """
+
         make_dir("RAM")
         with open("RAM/heap.txt", 'w', encoding="utf-8") as f:
             for addr, val in enumerate(self.heap):

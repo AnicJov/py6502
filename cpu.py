@@ -8,16 +8,28 @@ class CPU(Thread):
 
     def __init__(self, mode=0, frequency=1, rom_path="ROM/snake.bin", ram=None, console=True):
 
-        # -- Threading --
+        """
+
+            -- Threading --
+
+        """
         Thread.__init__(self)
 
-        # -- RAM --
+        """
+        
+            -- RAM --
+            
+        """
         if ram is None:
             self.ram = RAM()
         else:
             self.ram = ram
 
-        # -- Registers --
+        """
+        
+            -- Registers --
+            
+        """
 
         # - Main registers -
         self.AX = 0b00000000                # Accumulator
@@ -40,7 +52,11 @@ class CPU(Thread):
         #              || |||||
         self.flags = 0b00100000             # Processor flags
 
-        # -- Other --
+        """
+        
+            -- Other --
+            
+        """
 
         self.name = "MOS Technology 6502"   # Full name of the processor
         self.frequency = frequency          # Working frequency in Hz
@@ -49,7 +65,7 @@ class CPU(Thread):
         self.rom_path = rom_path            # Path to a ROM
         self.offset = 0                     # Memory offset of the program
         self.rom = None                     # ROM binary information
-        self.console = console
+        self.console = console              # If true prints CPU and RAM info every tick
 
         self.load_rom(self.rom_path)        # Sets the rom field to file contents
 
@@ -79,12 +95,18 @@ class CPU(Thread):
         return state + "\n" + str(self.ram)
 
     def run(self):
+        """ Starts the clock and starts executing instructions """
+
         self.running = True
 
+        # For snake.bin, sets the lastKey variable to key_D
         self.ram.write(0xff, 0x64)
 
+        # Starting address of program
         self.PC = 0x0600
 
+        # Runs tick at a certain frequency if mode is 0,
+        # or as fast as possible if mode is something else
         if self.mode == 0:
             while self.running:
                 freq(self.tick, self.frequency)
@@ -93,6 +115,8 @@ class CPU(Thread):
                 self.tick()
 
     def tick(self):
+        """ Fetches instruction, executes it and progresses the program counter """
+
         # Generate random number in memory location 0xFE for use in programs
         self.ram.write(0xfe, randint(0, 255))
 
@@ -130,6 +154,8 @@ class CPU(Thread):
                 input()
 
     def load_rom(self, path):
+        """ Loads a file specified in <path> into memory starting from address 0x0600 """
+
         with open(path, 'rb') as rom:
             i = 0
 
@@ -138,6 +164,8 @@ class CPU(Thread):
                 i += 1
 
     def decode_instruction(self, instruction):
+        """ Looks up instruction in memory and calls the appropriate function """
+
         try:
             opcode = instruction[0]
 
@@ -324,27 +352,39 @@ class CPU(Thread):
             input("Press <Enter> to exit...")
             exit()
 
-    # -- Processor state checks --
+    """
+    
+        -- Processor state checks --
+        
+    """
 
     def zero_check(self, val):
+        """ Sets zero flag appropriately for the value <val> passed """
+
         if val == 0:
             self.flags = set_bit(self.flags, 1, 1)
         else:
             self.flags = set_bit(self.flags, 1, 0)
 
     def negative_check(self, val):
+        """ Sets negative flag appropriately for the value <val> passed """
+
         if check_bit(val, 7):
             self.flags = set_bit(self.flags, 7, 1)
         else:
             self.flags = set_bit(self.flags, 7, 0)
 
     def carry_check(self, val):
+        """ Sets carry flag appropriately for the value <val> passed """
+
         if val > 255:
             self.flags = set_bit(self.flags, 0, 1)
         else:
             self.flags = set_bit(self.flags, 0, 0)
 
     def overflow_check(self, val1, val2):
+        """ Sets overflow flag appropriately for the values <val1> and <val2> passed """
+
         val_sum = val1 + val2
         if check_bit(val1, 7) and check_bit(val2, 7) and (not check_bit(val_sum, 7)):
             self.flags = set_bit(self.flags, 6)
@@ -353,13 +393,20 @@ class CPU(Thread):
         else:
             self.flags = set_bit(self.flags, 6, 0)
 
-    # -- Instructions --
+    """
+    
+        -- Instructions --
+        
+    """
 
-    # - NOP - No Operation
+    """ - NOP - No Operation """
+    # Implied
     def nop(self):
         print("NOP")
 
-    # - LDA - Load Accumulator -
+        self.offset += 0
+
+    """ - LDA - Load Accumulator - """
     # Immediate
     def lda_im(self, val):
         print("LDA #$" + hfmt(val))
@@ -434,7 +481,7 @@ class CPU(Thread):
 
         self.offset += 1
 
-    # - LDX - Load X Register
+    """ - LDX - Load X Register """
     # Immediate
     def ldx_im(self, val):
         print("LDX #$" + hfmt(val))
@@ -461,7 +508,7 @@ class CPU(Thread):
 
         self.offset += 1
 
-    # - LDY - Load Y Register
+    """ - LDY - Load Y Register """
     # Immediate
     def ldy_im(self, val):
         print("LDY #$" + hfmt(val))
@@ -474,7 +521,7 @@ class CPU(Thread):
 
         self.offset += 1
 
-    # - LSR - Logical Shift Right
+    """ - LSR - Logical Shift Right """
     # Accumulator
     def lsr_acc(self):
         print("LSR")
@@ -504,7 +551,7 @@ class CPU(Thread):
 
         self.offset += 2
 
-    # - SBC - Subtract with Carry
+    """ - SBC - Subtract with Carry """
     # Base
     def sbc(self, val):
         result, carry = bsub(self.AX, val)
@@ -551,13 +598,13 @@ class CPU(Thread):
 
         self.offset += 1
 
-    # - SEC - Set Carry Flag
+    """ - SEC - Set Carry Flag """
     def sec(self):
         print("SEC")
 
         self.flags = set_bit(self.flags, 0, 1)
 
-    # - STA - Store Accumulator
+    """ - STA - Store Accumulator """
     # Zero Page
     def sta_zp(self, addr):
         print("STA $" + hfmt(addr, 2))
@@ -624,7 +671,7 @@ class CPU(Thread):
 
         self.offset += 1
 
-    # - STX - Store X Register
+    """ - STX - Store X Register """
     # Absolute
     def stx_abs(self, addr):
         print("STX $" + hfmt(addr, 4))
@@ -632,7 +679,7 @@ class CPU(Thread):
         self.ram.write(addr, self.X)
         self.offset += 2
 
-    # - STY - Store Y Register
+    """ - STY - Store Y Register """
     # Absolute
     def sty_abs(self, addr):
         print("STY $" + hfmt(addr, 4))
@@ -640,7 +687,7 @@ class CPU(Thread):
         self.ram.write(addr, self.Y)
         self.offset += 2
 
-    # - TAX - Transfer Accumulator to X
+    """ - TAX - Transfer Accumulator to X """
     # Implied
     def tax(self):
         print("TAX")
@@ -651,7 +698,7 @@ class CPU(Thread):
         # Set negative flag
         self.negative_check(self.X)
 
-    # - TXA - Transfer X to Accumulator
+    """ - TXA - Transfer X to Accumulator """
     # Implied
     def txa(self):
         print("TXA")
@@ -663,7 +710,7 @@ class CPU(Thread):
         # Set negative flag
         self.negative_check(self.AX)
 
-    # - INC - Increment Memory
+    """ - INC - Increment Memory """
     # Base
     def inc(self, val, addr):
         self.ram.write(addr, badd(val, 1)[0])
@@ -683,7 +730,7 @@ class CPU(Thread):
 
         self.offset += 1
 
-    # - INX - Increment X Register
+    """ - INX - Increment X Register """
     # Implied
     def inx(self):
         print("INX")
@@ -695,7 +742,7 @@ class CPU(Thread):
         # Set negative flag
         self.negative_check(self.X)
 
-    # - INY - Increment Y Register
+    """ - INY - Increment Y Register """
     # Implied
     def iny(self):
         print("INY")
@@ -707,7 +754,7 @@ class CPU(Thread):
         # Set negative flag
         self.negative_check(self.Y)
 
-    # - DEC - Decrement Memory
+    """ - DEC - Decrement Memory """
     # Zero Page
     def dec_zp(self, addr):
         print("DEC $" + hfmt(addr))
@@ -734,7 +781,7 @@ class CPU(Thread):
 
         self.offset += 2
 
-    # - DEX - Decrement X Register
+    """ - DEX - Decrement X Register """
     # Implied
     def dex(self):
         print("DEX")
@@ -749,7 +796,7 @@ class CPU(Thread):
         # Set negative flag
         self.negative_check(self.X)
 
-    # - AND - Logical AND
+    """ - AND - Logical AND """
     # Immediate
     def and_im(self, val):
         print("AND $" + hfmt(val))
@@ -761,7 +808,7 @@ class CPU(Thread):
 
         self.offset += 1
 
-    # - ADC - Add with Carry
+    """ - ADC - Add with Carry """
     # Base
     def adc(self, val):
         result, carry = badd(self.AX, val)
@@ -798,7 +845,7 @@ class CPU(Thread):
 
         self.offset += 1
 
-    # - BIT - Bit Test
+    """ - BIT - Bit Test """
     # Zero Page
     def bit_zp(self, addr):
         print("BIT $" + hfmt(addr))
@@ -831,7 +878,7 @@ class CPU(Thread):
 
         self.offset += 2
 
-    # - BRK - Force Interrupt
+    """ - BRK - Force Interrupt """
     # Implied
     def brk(self):
         print("BRK")
@@ -851,7 +898,7 @@ class CPU(Thread):
         # Set break flag
         self.flags = set_bit(self.flags, 4, 1)
 
-    # - BCC - Branch if Carry Clear
+    """ - BCC - Branch if Carry Clear """
     def bcc(self, addr):
         print("BCC $" + hfmt(addr))
 
@@ -867,7 +914,7 @@ class CPU(Thread):
         else:
             self.offset += 1
 
-    # - BCS - Branch if Carry Set
+    """ - BCS - Branch if Carry Set """
     # Relative
     def bcs(self, addr):
         print("BCS $" + hfmt(addr))
@@ -884,7 +931,7 @@ class CPU(Thread):
         else:
             self.offset += 1
 
-    # - BEQ - Branch if Equal
+    """ - BEQ - Branch if Equal """
     # Relative
     def beq(self, addr):
         print("BEQ $" + hfmt(addr))
@@ -901,7 +948,7 @@ class CPU(Thread):
         else:
             self.offset += 1
 
-    # - BNE - Branch if Not Equal
+    """ - BNE - Branch if Not Equal """
     # Relative
     def bne(self, addr):
         print("BNE $" + hfmt(addr))
@@ -918,7 +965,7 @@ class CPU(Thread):
         else:
             self.offset += 1
 
-    # - BPL - Branch if Positive
+    """ - BPL - Branch if Positive """
     # Relative
     def bpl(self, addr):
         print("BPL $" + hfmt(addr))
@@ -935,14 +982,14 @@ class CPU(Thread):
         else:
             self.offset += 1
 
-    # - CLC - Clear Carry Flag
+    """ - CLC - Clear Carry Flag """
     # Implied
     def clc(self):
         print("CLC")
 
         self.flags = set_bit(self.flags, 0, 0)
 
-    # - CMP - Compare
+    """ - CMP - Compare """
     # Base
     def cmp(self, val):
         result = bsub(self.AX, val)[0]
@@ -980,7 +1027,7 @@ class CPU(Thread):
 
         self.offset += 1
 
-    # - CPX - Compare X Register
+    """ - CPX - Compare X Register """
     # Base
     def cpx(self, val):
         result = bsub(self.X, val)[0]
@@ -1018,7 +1065,7 @@ class CPU(Thread):
 
         self.offset += 1
 
-    # - CPY - Compare Y Register
+    """ - CPY - Compare Y Register """
     # Base
     def cpy(self, val):
         result = bsub(self.Y, val)[0]
@@ -1046,7 +1093,7 @@ class CPU(Thread):
 
         self.offset += 1
 
-    # - JMP - Jump
+    """ - JMP - Jump """
     # Absolute
     def jmp_abs(self, addr):
         print("JMP $" + hfmt(addr, 4))
@@ -1063,7 +1110,7 @@ class CPU(Thread):
         # Set the program counter to that address
         self.PC = addr
 
-    # - JSR - Jump to Subroutine
+    """ - JSR - Jump to Subroutine """
     def jsr_abs(self, addr):
         print("JSR $" + hfmt(addr, 4))
 
@@ -1071,15 +1118,14 @@ class CPU(Thread):
         self.PC = addr - 1
         self.SP -= 1
 
-    # TODO: Fix nested JSR/RTS
-    # - RTS - Return from Subroutine
+    """ - RTS - Return from Subroutine """
     def rts(self):
         print("RTS")
 
         self.SP += 1
         self.PC = self.ram.pop(self.SP)
 
-    # - PHA - Push Accumulator
+    """ - PHA - Push Accumulator """
     # Implied
     def pha(self):
         print("PHA")
@@ -1087,7 +1133,7 @@ class CPU(Thread):
         self.ram.push(self.AX, self.SP)
         self.SP -= 1
 
-    # - PLA - Pull Accumulator
+    """ - PLA - Pull Accumulator """
     # Implied
     def pla(self):
         print("PLA")
