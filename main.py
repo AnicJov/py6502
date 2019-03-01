@@ -5,7 +5,7 @@ import sys
 
 
 def main():
-    mode = 1
+    mode = 0
     frequency = 0
 
     if len(sys.argv) >= 2:
@@ -26,7 +26,6 @@ def main():
     print("Running ROM: ", end='')
     print(cpu.rom_path)
     input("\nPress <Enter> to start...")
-
     cpu.start()
 
 

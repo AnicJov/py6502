@@ -81,6 +81,8 @@ class CPU(Thread):
     def run(self):
         self.running = True
 
+        self.ram.write(0xff, 0x64)
+
         self.PC = 0x0600
 
         if self.mode == 0:
@@ -93,8 +95,6 @@ class CPU(Thread):
     def tick(self):
         # Generate random number in memory location 0xFE for use in programs
         self.ram.write(0xfe, randint(0, 255))
-
-        self.ram.write(0xff, 0x77)
 
         # Offset the program counter
         self.PC += self.offset
@@ -505,14 +505,15 @@ class CPU(Thread):
         self.offset += 2
 
     # - SBC - Subtract with Carry
-    # Immediate
-    def sbc_im(self, val):
-        print("SBC #$" + hfmt(val, 2))
-
-        result = bsub(self.AX, val)
+    # Base
+    def sbc(self, val):
+        result, carry = bsub(self.AX, val)
 
         # Set carry flag
-        self.carry_check(result)
+        if carry:
+            self.flags = set_bit(self.flags, 0, 1)
+        else:
+            self.flags = set_bit(self.flags, 0, 0)
         # Set zero flag
         self.zero_check(result)
         # Set overflow flag
@@ -521,6 +522,13 @@ class CPU(Thread):
         self.negative_check(result)
 
         self.AX = result
+
+    # Immediate
+    def sbc_im(self, val):
+        print("SBC #$" + hfmt(val, 2))
+
+        self.sbc(val)
+
         self.offset += 1
 
     # Zero Page
@@ -528,18 +536,9 @@ class CPU(Thread):
         print("SBC $" + hfmt(addr))
 
         val = self.ram.read(addr)
-        result = bsub(self.AX, val)
 
-        # Set carry flag
-        self.carry_check(result)
-        # Set zero flag
-        self.zero_check(result)
-        # Set overflow flag
-        self.overflow_check(self.AX, val)
-        # Set negative flag
-        self.negative_check(result)
+        self.sbc(val)
 
-        self.AX = result
         self.offset += 1
 
     # Absolute
@@ -547,19 +546,10 @@ class CPU(Thread):
         print("SBC $" + hfmt(addr, 4))
 
         val = self.ram.read(addr)
-        result = bsub(self.AX, val)
 
-        # Set carry flag
-        self.carry_check(result)
-        # Set zero flag
-        self.zero_check(result)
-        # Set overflow flag
-        self.overflow_check(self.AX, val)
-        # Set negative flag
-        self.negative_check(result)
+        self.sbc(val)
 
-        self.AX = result
-        self.offset += 2
+        self.offset += 1
 
     # - SEC - Set Carry Flag
     def sec(self):
@@ -674,18 +664,22 @@ class CPU(Thread):
         self.negative_check(self.AX)
 
     # - INC - Increment Memory
-    # Zero Page
-    def inc_zp(self, addr):
-        print("INC $" + hfmt(addr))
-
-        val = badd(self.ram.read(addr), 1)
-
-        self.ram.write(addr, val)
+    # Base
+    def inc(self, val, addr):
+        self.ram.write(addr, badd(val, 1)[0])
 
         # Set zero flag
         self.zero_check(val)
         # Set negative flag
         self.negative_check(val)
+
+    # Zero Page
+    def inc_zp(self, addr):
+        print("INC $" + hfmt(addr))
+
+        val = self.ram.read(addr)
+
+        self.inc(val, addr)
 
         self.offset += 1
 
@@ -694,7 +688,7 @@ class CPU(Thread):
     def inx(self):
         print("INX")
 
-        self.X = badd(self.X, 1)
+        self.X = badd(self.X, 1)[0]
 
         # Set zero flag
         self.zero_check(self.X)
@@ -706,7 +700,7 @@ class CPU(Thread):
     def iny(self):
         print("INY")
 
-        self.Y = badd(self.Y, 1)
+        self.Y = badd(self.Y, 1)[0]
 
         # Set zero flag
         self.zero_check(self.Y)
@@ -768,14 +762,15 @@ class CPU(Thread):
         self.offset += 1
 
     # - ADC - Add with Carry
-    # Immediate
-    def adc_im(self, val):
-        print("ADC #$" + hfmt(val, 2))
-
-        result = badd(self.AX, val)
+    # Base
+    def adc(self, val):
+        result, carry = badd(self.AX, val)
 
         # Set carry flag
-        self.carry_check(self.AX + val)
+        if carry:
+            self.flags = set_bit(self.flags, 0, 1)
+        else:
+            self.flags = set_bit(self.flags, 0, 0)
         # Set zero flag
         self.zero_check(result)
         # Set overflow flag
@@ -784,6 +779,13 @@ class CPU(Thread):
         self.negative_check(result)
 
         self.AX = result
+
+    # Immediate
+    def adc_im(self, val):
+        print("ADC #$" + hfmt(val, 2))
+
+        self.adc(val)
+
         self.offset += 1
 
     # Zero Page
@@ -792,18 +794,8 @@ class CPU(Thread):
 
         val = self.ram.read(addr)
 
-        result = badd(self.AX, val)
+        self.adc(val)
 
-        # Set carry flag
-        self.carry_check(self.AX + val)
-        # Set zero flag
-        self.zero_check(result)
-        # Set overflow flag
-        self.overflow_check(self.AX, val)
-        # Set negative flag
-        self.negative_check(result)
-
-        self.AX = result
         self.offset += 1
 
     # - BIT - Bit Test
@@ -951,9 +943,9 @@ class CPU(Thread):
         self.flags = set_bit(self.flags, 0, 0)
 
     # - CMP - Compare
-    # Immediate
-    def cmp_im(self, val):
-        print("CMP #$" + hfmt(val))
+    # Base
+    def cmp(self, val):
+        result = bsub(self.AX, val)[0]
 
         # If value of AX is greater than passed value, set carry flag
         if self.AX >= val:
@@ -968,7 +960,13 @@ class CPU(Thread):
             self.flags = set_bit(self.flags, 1, 0)
 
         # If bit 7 of the result is set, set negative flag
-        self.negative_check(self.AX)
+        self.flags = set_bit(self.flags, 7, check_bit(result, 7))
+
+    # Immediate
+    def cmp_im(self, val):
+        print("CMP #$" + hfmt(val))
+
+        self.cmp(val)
 
         self.offset += 1
 
@@ -978,42 +976,35 @@ class CPU(Thread):
 
         val = self.ram.read(addr)
 
-        # If value of AX is greater than passed value, set carry flag
-        if self.AX >= val:
-            self.flags = set_bit(self.flags, 0, 1)
-        else:
-            self.flags = set_bit(self.flags, 0, 0)
-
-        # If value of AX is equal to passed value, set zero flag
-        if self.AX == val:
-            self.flags = set_bit(self.flags, 1, 1)
-        else:
-            self.flags = set_bit(self.flags, 1, 0)
-
-        # If bit 7 of the result is set, set negative flag
-        self.negative_check(self.AX)
+        self.cmp(val)
 
         self.offset += 1
 
     # - CPX - Compare X Register
-    # Immediate
-    def cpx_im(self, val):
-        print("CPX #$" + hfmt(val))
+    # Base
+    def cpx(self, val):
+        result = bsub(self.X, val)[0]
 
-        # If value of X is greater than passed value, set carry flag
+        # If value of AX is greater than passed value, set carry flag
         if self.X >= val:
             self.flags = set_bit(self.flags, 0, 1)
         else:
             self.flags = set_bit(self.flags, 0, 0)
 
-        # If value of X is equal to passed value, set zero flag
+        # If value of AX is equal to passed value, set zero flag
         if self.X == val:
             self.flags = set_bit(self.flags, 1, 1)
         else:
             self.flags = set_bit(self.flags, 1, 0)
 
         # If bit 7 of the result is set, set negative flag
-        self.negative_check(self.X)
+        self.flags = set_bit(self.flags, 7, check_bit(result, 7))
+
+    # Immediate
+    def cpx_im(self, val):
+        print("CPX #$" + hfmt(val))
+
+        self.cpx(val)
 
         self.offset += 1
 
@@ -1023,42 +1014,35 @@ class CPU(Thread):
 
         val = self.ram.read(addr)
 
-        # If value of X is greater than passed value, set carry flag
-        if self.X >= val:
-            self.flags = set_bit(self.flags, 0, 1)
-        else:
-            self.flags = set_bit(self.flags, 0, 0)
-
-        # If value of X is equal to passed value, set zero flag
-        if self.X == val:
-            self.flags = set_bit(self.flags, 1, 1)
-        else:
-            self.flags = set_bit(self.flags, 1, 0)
-
-        # If bit 7 of the result is set, set negative flag
-        self.negative_check(self.X)
+        self.cpx(val)
 
         self.offset += 1
 
     # - CPY - Compare Y Register
-    # Immediate
-    def cpy_im(self, val):
-        print("CPY #$" + hfmt(val))
+    # Base
+    def cpy(self, val):
+        result = bsub(self.Y, val)[0]
 
-        # If value of Y is greater than passed value, set carry flag
+        # If value of AX is greater than passed value, set carry flag
         if self.Y >= val:
             self.flags = set_bit(self.flags, 0, 1)
         else:
             self.flags = set_bit(self.flags, 0, 0)
 
-        # If value of Y is equal to passed value, set zero flag
+        # If value of AX is equal to passed value, set zero flag
         if self.Y == val:
             self.flags = set_bit(self.flags, 1, 1)
         else:
             self.flags = set_bit(self.flags, 1, 0)
 
         # If bit 7 of the result is set, set negative flag
-        self.negative_check(self.Y)
+        self.flags = set_bit(self.flags, 7, check_bit(result, 7))
+
+    # Immediate
+    def cpy_im(self, val):
+        print("CPY #$" + hfmt(val))
+
+        self.cpy(val)
 
         self.offset += 1
 

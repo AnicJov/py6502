@@ -74,18 +74,12 @@ def set_bit(val, n, x=1):
 
 
 def comp(val, size=8):
+    return (2**size) - 1 - val
 
-    val = list(bin_to_str(val).zfill(size))
 
-    for i in range(0, size):
-        if val[i] == '0':
-            val[i] = '1'
-        else:
-            val[i] = '0'
-
-    val = bin_to_str(int(''.join(val).zfill(size), 2) + 1)
-
-    return int(val[:8])
+def twos_comp(val, size=8):
+    val, carry = badd(comp(val, size), 1, size)
+    return val
 
 
 def decomp(val):
@@ -100,6 +94,26 @@ def decomp(val):
     return val
 
 
+def twos_decomp(val, size):
+    val = bsub(val, 1, size)
+    val = decomp(val)
+    return val
+
+
+def badd(x, y, size=8):
+    max_num = 2**size - 1
+    result = x + y
+
+    if result > max_num:
+        return result & max_num, 1
+    else:
+        return result & max_num, 0
+
+
+def bsub(x, y, size=8):
+    return badd(x, twos_comp(y), size)
+
+
 def bin_to_str(val):
     return str(bin(val))[2:]
 
@@ -107,28 +121,3 @@ def bin_to_str(val):
 def str_to_bin(string):
     return int(string, 2)
 
-
-def bsub(x, y, size=8):
-    return badd(x, comp(y))
-
-
-def badd(x, y, size=8):
-        max_len = size
-
-        x = bin_to_str(x).zfill(max_len)
-        y = bin_to_str(y).zfill(max_len)
-
-        result = ''
-        carry = 0
-
-        for i in range(max_len-1, -1, -1):
-            r = carry
-            r += 1 if x[i] == '1' else 0
-            r += 1 if y[i] == '1' else 0
-            result = ('1' if r % 2 == 1 else '0') + result
-            carry = 0 if r < 2 else 1       
-
-        if carry != 0:
-            result = '1' + result
-
-        return int(result.zfill(max_len)[:8], 2)
