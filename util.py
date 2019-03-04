@@ -1,6 +1,13 @@
 import os
 import time
+import math
 
+
+def digit_count(num, base=10):
+    if num > 0:
+        return int(math.log(num, base) + 1)
+    else:
+        return 1
 
 def bprint(num):
     """ Prints a binary number <num> """
@@ -19,8 +26,10 @@ def bfmt(num, size=8):
         return num
 
 
-def hfmt(num, size=2):
+def hfmt(num, size=0):
     """ Returns the printable string version of a hex number <num> that's length <size> """
+    if size == 0:
+        size = digit_count(num, 16)
 
     length = '0' + str(size) + 'x'
     return format(num, length)
@@ -154,3 +163,8 @@ def str_to_bin(string):
 
     return int(string, 2)
 
+def is_immediate(addr):
+    if 0x0600 < addr < 0x0800:
+        return True
+    else:
+        return False
