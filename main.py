@@ -5,14 +5,14 @@ import sys
 
 
 def main():
-    mode = 0
+    mode = 1
     frequency = 0
 
     if len(sys.argv) >= 2:
-        if sys.argv[1] == "noconsole":
-            cpu = CPU(mode=mode, frequency=frequency, console=False)
-        else:
-            cpu = None
+        cpu = CPU(mode=0 if "async" in sys.argv else 1
+                  , frequency=frequency,
+                  console=False if "noconsole" in sys.argv else True)
+
     else:
         cpu = CPU(mode=mode, frequency=frequency, console=True)
 

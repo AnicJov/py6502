@@ -1,3 +1,5 @@
+# TODO: Add file headers
+
 from util import *
 from threading import Thread
 from ram import RAM
@@ -66,8 +68,7 @@ class CPU(Thread):
         self.offset = 0                     # Memory offset of the program
         self.rom = None                     # ROM binary information
         self.console = console              # If true prints CPU and RAM info every tick
-
-        self.load_rom(self.rom_path)        # Sets the rom field to file contents
+        self.lookup_table = []              # Maps bytes to instructions
 
     def __repr__(self):
         sp = bfmt(self.SP, 16)
@@ -96,6 +97,12 @@ class CPU(Thread):
 
     def run(self):
         """ Starts the clock and starts executing instructions """
+
+        # Sets up instruction lookup table
+        self.setup_lookup_table()
+
+        # Sets the rom field to file contents
+        self.load_rom(self.rom_path)
 
         self.running = True
 
@@ -163,6 +170,34 @@ class CPU(Thread):
                 self.ram.write(0x0600 + i, byte)
                 i += 1
 
+    def setup_lookup_table(self):
+        self.lookup_table = [None] * 0x100
+
+        self.lookup_table[0xEA] = lambda: self.nop(self.implied())
+
+        self.lookup_table[0xA9] = lambda: self.lda(self.immediate())
+        self.lookup_table[0xA5] = lambda: self.lda(self.zero_page())
+        self.lookup_table[0xB5] = lambda: self.lda(self.zero_page_x())
+        self.lookup_table[0xA1] = lambda: self.lda(self.indirect_x())
+        self.lookup_table[0xB1] = lambda: self.lda(self.indirect_y())
+
+        self.lookup_table[0xA2] = lambda: self.ldx(self.immediate())
+        self.lookup_table[0xA6] = lambda: self.ldx(self.zero_page())
+
+        self.lookup_table[0xA0] = lambda: self.ldy(self.immediate())
+
+        self.lookup_table[0x4A] = lambda: self.lsr_acc()
+        self.lookup_table[0x46] = lambda: self.lsr_zp(self.PC + 1)
+        self.lookup_table[0x4E] = lambda: self.lsr_abs(hcat(self.PC + 2, self.PC + 1))
+
+        self.lookup_table[0xE9] = lambda: self.sbc(self.immediate())
+        self.lookup_table[0xE5] = lambda: self.sbc(self.zero_page())
+        self.lookup_table[0xED] = lambda: self.sbc(self.absolute())
+
+        self.lookup_table[0x38] = lambda: self.sec(self.implied())
+
+        self.lookup_table[0x85] = lambda: self.sta_zp(self.PC + 1)
+
     def decode_instruction(self, instruction):
         """ Looks up instruction in memory and calls the appropriate function """
 
@@ -171,59 +206,15 @@ class CPU(Thread):
 
             if self.console:
                 print("Current instruction: $", end='')
-                print(hfmt(instruction[0]))
+                print(hfmt(opcode))
 
-            #           NOP Implied
-            if opcode == 0xea:
-                self.nop()
-            #           LDA Immediate
-            if opcode == 0xa9:
-                self.lda_im(instruction[1])
-            #           LDA Zero Page
-            if opcode == 0xa5:
-                self.lda_zp(instruction[1])
-            #           LDA Zero Page,X
-            if opcode == 0xb5:
-                self.lda_zpx(instruction[1])
-            #           LDA Indirect,X
-            if opcode == 0xa1:
-                self.lda_indx(instruction[1])
-            #           LDA Indirect,Y
-            if opcode == 0xb1:
-                self.lda_indy(instruction[1])
-            #           LDX Immediate
-            if opcode == 0xa2:
-                self.ldx_im(instruction[1])
-            #           LDX Zero Page
-            if opcode == 0xa6:
-                self.ldx_zp(instruction[1])
-            #           LDY Immediate
-            if opcode == 0xa0:
-                self.ldy_im(instruction[1])
-            #           LSR Accumulator
-            if opcode == 0x4a:
-                self.lsr_acc()
-            #           LSR Zero Page
-            if opcode == 0x46:
-                self.lsr_zp(instruction[1])
-            #           LSR Absolute
-            if opcode == 0x4e:
-                self.lsr_abs(hcat(instruction[2], instruction[1]))
-            #           SBC Immediate
-            if opcode == 0xe9:
-                self.sbc_im(instruction[1])
-            #           SBC Zero Page
-            if opcode == 0xe5:
-                self.sbc_zp(instruction[1])
-            #           SBC Absolute
-            if opcode == 0xed:
-                self.sbc_abs(hcat(instruction[2], instruction[1]))
-            #           SEC Implied
-            if opcode == 0x38:
-                self.sec()
-            #           STA Zero Page
-            if opcode == 0x85:
-                self.sta_zp(instruction[1])
+            # TODO: Make this a lookup table instead of conditions
+
+            try:
+                self.lookup_table[opcode]()
+            except TypeError:
+                self.unk(opcode)
+
             #           STA Zero Page,X
             if opcode == 0x95:
                 self.sta_zpx(instruction[1])
@@ -395,20 +386,136 @@ class CPU(Thread):
 
     """
     
+        -- Addressing Modes --
+    
+    """
+
+    def implied(self):
+        self.offset += 0
+
+        return None
+
+    def implicit(self):
+        self.offset += 0
+
+        return None
+
+    def accumulator(self):
+        self.offset += 0
+
+        return None
+
+    def immediate(self):
+        self.offset += 1
+
+        return self.ram.read(self.PC + 1)
+
+    def zero_page(self):
+        self.offset += 1
+
+        return self.ram.read(self.PC + 1)
+
+    def zero_page_x(self):
+        rel_addr = self.ram.read(self.PC + 1)
+
+        if rel_addr + self.X > 255:
+            addr = rel_addr + self.X - 255
+        else:
+            addr = rel_addr + self.X
+
+        self.offset += 1
+
+        return self.ram.read(addr)
+
+    def zero_page_y(self):
+        rel_addr = self.ram.read(self.PC + 1)
+
+        if rel_addr + self.Y > 255:
+            addr = rel_addr + self.Y - 255
+        else:
+            addr = rel_addr + self.Y
+
+        self.offset += 1
+
+        return self.ram.read(addr)
+
+    def relative(self):
+        self.offset += 1
+
+        return self.ram.read(self.PC + 1)
+
+    def absolute(self):
+        addr = hcat(self.ram.read(self.PC + 2), self.ram.read(self.PC + 1))
+
+        self.offset += 2
+
+        return self.ram.read(addr)
+
+    def absolute_x(self):
+        addr = hcat(self.ram.read(self.PC + 2), self.ram.read(self.PC + 1)) + self.X
+
+        self.offset += 2
+
+        return self.ram.read(addr)
+
+    def absolute_y(self):
+        addr = hcat(self.ram.read(self.PC + 2), self.ram.read(self.PC + 1)) + self.Y
+
+        self.offset += 2
+
+        return self.ram.read(addr)
+
+    def indirect(self):
+        addr = hcat(self.ram.read(self.PC + 2), self.ram.read(self.PC + 1))
+
+        self.offset += 2
+
+        return self.ram.read(hcat(self.ram.read(addr), self.ram.read(addr + 1)))
+
+    def indirect_x(self):
+        ind_addr = hcat(self.ram.read(self.PC + 2), self.ram.read(self.PC + 1))
+
+        if ind_addr + self.X > 255:
+            rel_addr = ind_addr + self.X - 255
+        else:
+            rel_addr = ind_addr + self.X
+
+        addr = hcat(self.ram.read(rel_addr), self.ram.read(rel_addr + 1))
+
+        self.offset += 1
+
+        return self.ram.read(addr)
+
+    def indirect_y(self):
+        addr = hcat(self.ram.read(self.ram.read(self.PC + 2) + 1), self.ram.read(self.ram.read(self.PC + 1))) + self.Y
+
+        self.offset += 1
+
+        return self.ram.read(addr)
+
+    """
+    
         -- Instructions --
         
     """
 
+    # TODO: Make addressing modes separate functions and pass the return into
+    #       specific instruction functions
+
+    """ - UNK - Unknown Instruction """
+    def unk(self, opcode):
+        print("UNK $" + hfmt(opcode))
+
+        self.offset += 0
+
     """ - NOP - No Operation """
-    # Implied
-    def nop(self):
+    def nop(self, val):
         print("NOP")
 
         self.offset += 0
 
     """ - LDA - Load Accumulator - """
-    # Immediate
-    def lda_im(self, val):
+    def lda(self, val):
         print("LDA #$" + hfmt(val))
 
         self.AX = val
@@ -418,72 +525,8 @@ class CPU(Thread):
         # Set negative flag
         self.negative_check(val)
 
-        self.offset += 1
-
-    # Zero Page
-    def lda_zp(self, addr):
-        print("LDA $" + hfmt(addr))
-
-        self.AX = self.ram.read(addr)
-
-        # Set zero flag
-        self.zero_check(self.AX)
-        # Set negative flag
-        self.negative_check(self.AX)
-
-        self.offset += 1
-
-    # Zero Page,X
-    def lda_zpx(self, ind_addr):
-        print("LDA $" + hfmt(ind_addr) + ",X")
-
-        # Get absolute address
-        if ind_addr + self.X > 255:
-            addr = ind_addr + self.X
-        else:
-            addr = ind_addr + self.X - 255
-
-        self.AX = self.ram.read(addr)
-
-        # Set zero flag
-        self.zero_check(self.AX)
-        # Set negative flag
-        self.negative_check(self.AX)
-
-        self.offset += 1
-
-    # (Indirect,X)
-    def lda_indx(self, ind_addr):
-        print("LDA ($" + hfmt(ind_addr) + ",X)")
-
-        # Get absolute address
-        if ind_addr + self.X > 255:
-            rel_addr = ind_addr + self.X - 255
-        else:
-            rel_addr = ind_addr + self.X
-
-        addr = hcat(self.ram.read(rel_addr), self.ram.read(rel_addr + 1))
-
-        # Set A to value in address
-        self.AX = self.ram.read(addr)
-
-        self.offset += 1
-
-    # (Indirect),Y
-    def lda_indy(self, ind_addr):
-        print("LDA ($" + hfmt(ind_addr) + "),Y")
-
-        # Get absolute address
-        addr = hcat(self.ram.read(ind_addr + 1), self.ram.read(ind_addr)) + self.Y
-
-        # Load value in address into A
-        self.AX = self.ram.read(addr)
-
-        self.offset += 1
-
     """ - LDX - Load X Register """
-    # Immediate
-    def ldx_im(self, val):
+    def ldx(self, val):
         print("LDX #$" + hfmt(val))
 
         self.X = val
@@ -492,25 +535,8 @@ class CPU(Thread):
         # Set negative flag
         self.negative_check(val)
 
-        self.offset += 1
-
-    # Zero Page
-    def ldx_zp(self, addr):
-        print("LDX $" + hfmt(addr))
-
-        val = self.ram.read(addr)
-
-        self.X = val
-        # Set zero flag
-        self.zero_check(val)
-        # Set negative flag
-        self.negative_check(val)
-
-        self.offset += 1
-
     """ - LDY - Load Y Register """
-    # Immediate
-    def ldy_im(self, val):
+    def ldy(self, val):
         print("LDY #$" + hfmt(val))
 
         self.Y = val
@@ -518,8 +544,6 @@ class CPU(Thread):
         self.zero_check(val)
         # Set negative flag
         self.negative_check(val)
-
-        self.offset += 1
 
     """ - LSR - Logical Shift Right """
     # Accumulator
@@ -529,7 +553,6 @@ class CPU(Thread):
         self.flags = set_bit(self.flags, 0, check_bit(self.AX, 0))
         self.AX = self.AX >> 1
 
-    # Zero Page
     def lsr_zp(self, addr):
         print("LSR $" + hfmt(addr))
 
@@ -537,8 +560,6 @@ class CPU(Thread):
 
         self.flags = set_bit(self.flags, 0, check_bit(val, 0))
         self.ram.write(addr, val >> 1)
-
-        self.offset += 1
 
     # Absolute
     def lsr_abs(self, addr):
@@ -549,12 +570,12 @@ class CPU(Thread):
         self.flags = set_bit(self.flags, 0, check_bit(val, 0))
         self.ram.write(addr, val >> 1)
 
-        self.offset += 2
-
     """ - SBC - Subtract with Carry """
-    # Base
     def sbc(self, val):
+        print("SBC #$")
+
         result, carry = bsub(self.AX, val)
+        result, carry = bsub(result, check_bit(self.flags, 0))
 
         # Set carry flag
         if carry:
@@ -570,36 +591,8 @@ class CPU(Thread):
 
         self.AX = result
 
-    # Immediate
-    def sbc_im(self, val):
-        print("SBC #$" + hfmt(val, 2))
-
-        self.sbc(val)
-
-        self.offset += 1
-
-    # Zero Page
-    def sbc_zp(self, addr):
-        print("SBC $" + hfmt(addr))
-
-        val = self.ram.read(addr)
-
-        self.sbc(val)
-
-        self.offset += 1
-
-    # Absolute
-    def sbc_abs(self, addr):
-        print("SBC $" + hfmt(addr, 4))
-
-        val = self.ram.read(addr)
-
-        self.sbc(val)
-
-        self.offset += 1
-
     """ - SEC - Set Carry Flag """
-    def sec(self):
+    def sec(self, val):
         print("SEC")
 
         self.flags = set_bit(self.flags, 0, 1)
@@ -811,7 +804,7 @@ class CPU(Thread):
     """ - ADC - Add with Carry """
     # Base
     def adc(self, val):
-        result, carry = badd(self.AX, val)
+        result, carry = badd(self.AX, val, check_bit(self.flags, 0))
 
         # Set carry flag
         if carry:
@@ -1111,19 +1104,26 @@ class CPU(Thread):
         self.PC = addr
 
     """ - JSR - Jump to Subroutine """
+    # Absolute
     def jsr_abs(self, addr):
         print("JSR $" + hfmt(addr, 4))
 
-        self.ram.push(self.PC + 2, self.SP)
+        # Push upper byte of program counter to stack
+        self.ram.push(self.PC >> 8, self.SP - 1)
+        # Push lower byte of program counter to stack
+        self.ram.push((self.PC + 2) & 0xFF, self.SP)
+
+        self.SP -= 2
+
         self.PC = addr - 1
-        self.SP -= 1
 
     """ - RTS - Return from Subroutine """
+    # Implied
     def rts(self):
         print("RTS")
 
-        self.SP += 1
-        self.PC = self.ram.pop(self.SP)
+        self.SP += 2
+        self.PC = hcat(self.ram.pop(self.SP - 1), self.ram.pop(self.SP))
 
     """ - PHA - Push Accumulator """
     # Implied
@@ -1138,5 +1138,5 @@ class CPU(Thread):
     def pla(self):
         print("PLA")
 
-        self.AX = self.ram.pop(self.SP + 1)
         self.SP += 1
+        self.AX = self.ram.pop(self.SP)

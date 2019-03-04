@@ -122,11 +122,14 @@ def twos_decomp(val, size):
     return val
 
 
-def badd(x, y, size=8):
+def badd(*nums, size=8):
     """ Adds two binary integers of a bit length of <size> using two's complement """
 
     max_num = 2**size - 1
-    result = x + y
+    result = 0
+
+    for num in nums:
+        result += num
 
     if result > max_num:
         return result & max_num, 1

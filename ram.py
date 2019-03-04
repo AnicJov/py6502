@@ -44,8 +44,7 @@ class RAM(Thread):
     def init_heap(self):
         """ Populates the heap array with zero values up to the length <self.address_space> """
 
-        for _ in range(0, self.address_space):
-            self.heap.append(0b00000000)
+        self.heap = [0b00000000] * self.address_space
 
     def push(self, data, sp):
         """ Writes <data> into address that <sp> is pointing to """
@@ -57,6 +56,7 @@ class RAM(Thread):
 
         val = self.heap[sp]
         self.heap[sp] = 0b00000000
+
         return val
 
     def write(self, addr, data):
@@ -75,7 +75,10 @@ class RAM(Thread):
         make_dir("RAM")
         with open("RAM/heap.txt", 'w', encoding="utf-8") as f:
             for addr, val in enumerate(self.heap):
-                f.write("0x" + hfmt(addr, 4) + ": 0x" + hfmt(val) + " 0b" + bfmt(val) + "\n")
+                if addr % 16 == 0:
+                    f.write("\n$" + hfmt(addr, 4) + ":")
+                else:
+                    f.write(" " + hfmt(val))
 
 
 if __name__ == "__main__":

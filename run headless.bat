@@ -1,1 +1,2 @@
-python main.py noconsole
+python main.py noconsole async
+PAUSE
