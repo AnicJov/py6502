@@ -29,7 +29,7 @@ def bfmt(num, size=8):
 def hfmt(num, size=0):
     """ Returns the printable string version of a hex number <num> that's length <size> """
     if size == 0:
-        size = digit_count(num, 16)
+        size = digit_count(num, 16) + digit_count(num, 16) % 2
 
     length = '0' + str(size) + 'x'
     return format(num, length)
@@ -41,7 +41,7 @@ def hcat(*nums):
     string = ''
 
     for num in nums:
-        string += hfmt(num)
+        string += hfmt(num, 2)
 
     return int(string, 16)
 

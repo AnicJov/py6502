@@ -8,7 +8,7 @@ from random import randint
 
 class CPU(Thread):
 
-    def __init__(self, mode=0, frequency=1, rom_path="ROM/snake.bin", ram=None, console=True):
+    def __init__(self, mode=0, frequency=1, rom_path="ROM/test5.bin", ram=None, console=True):
 
         """
 
@@ -381,6 +381,7 @@ class CPU(Thread):
         addr = hcat(self.ram.read(self.PC + 2), self.ram.read(self.PC + 1))
 
         self.offset += 2
+        print(self.offset)
 
         return addr
 
@@ -470,9 +471,9 @@ class CPU(Thread):
 
         self.X = self.ram.read(addr)
         # Set zero flag
-        self.zero_check(val)
+        self.zero_check(self.X)
         # Set negative flag
-        self.negative_check(val)
+        self.negative_check(self.X)
 
     """ - LDY - Load Y Register """
     def ldy(self, addr):
@@ -483,9 +484,9 @@ class CPU(Thread):
 
         self.Y = self.ram.read(addr)
         # Set zero flag
-        self.zero_check(val)
+        self.zero_check(self.Y)
         # Set negative flag
-        self.negative_check(val)
+        self.negative_check(self.Y)
 
     """ - LSR - Logical Shift Right """
     def lst(self, addr):
@@ -539,19 +540,19 @@ class CPU(Thread):
 
     """ - STA - Store Accumulator """
     def sta(self, addr):
-        print("STA $" + hfmt(addr, 2))
+        print("STA $" + hfmt(addr))
 
         self.ram.write(addr, self.AX)
 
     """ - STX - Store X Register """
     def stx(self, addr):
-        print("STX $" + hfmt(addr, 4))
+        print("STX $" + hfmt(addr))
 
         self.ram.write(addr, self.X)
 
     """ - STY - Store Y Register """
     def sty(self, addr):
-        print("STY $" + hfmt(addr, 4))
+        print("STY $" + hfmt(addr))
 
         self.ram.write(addr, self.Y)
 
@@ -870,7 +871,7 @@ class CPU(Thread):
         self.flags = set_bit(self.flags, 7, check_bit(result, 7))
 
     """ - JMP - Jump """
-    def jmp_abs(self, addr):
+    def jmp(self, addr):
         print("JMP $" + hfmt(addr))
 
         self.PC = addr
@@ -886,7 +887,7 @@ class CPU(Thread):
 
         self.SP -= 2
 
-        self.PC = addr - 1
+        self.PC = addr
 
     """ - RTS - Return from Subroutine """
     def rts(self):
