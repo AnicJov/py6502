@@ -357,7 +357,7 @@ class CPU(Thread):
     def zero_page(self):
         self.offset += 1
 
-        return self.PC + 1
+        return self.ram.read(self.PC + 1)
 
     def zero_page_x(self):
         rel_addr = self.ram.read(self.PC + 1)
@@ -549,19 +549,19 @@ class CPU(Thread):
     def sta(self, addr):
         print("STA $" + hfmt(addr))
 
-        self.ram.write(self.ram.read(addr), self.AX)
+        self.ram.write(addr, self.AX)
 
     """ - STX - Store X Register """
     def stx(self, addr):
         print("STX $" + hfmt(addr))
 
-        self.ram.write(self.ram.read(addr), self.X)
+        self.ram.write(addr, self.X)
 
     """ - STY - Store Y Register """
     def sty(self, addr):
         print("STY $" + hfmt(addr))
 
-        self.ram.write(self.ram.read(addr), self.Y)
+        self.ram.write(addr, self.Y)
 
     """ - TAX - Transfer Accumulator to X """
     def tax(self):

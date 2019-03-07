@@ -89,8 +89,7 @@ class RAM(Thread):
             for addr, val in enumerate(self.heap):
                 if addr % 16 == 0:
                     f.write("\n$" + hfmt(addr, 4) + ":")
-                else:
-                    f.write(" " + hfmt(val))
+                f.write(" " + hfmt(val))
 
 
 if __name__ == "__main__":
