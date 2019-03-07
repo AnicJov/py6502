@@ -1,3 +1,15 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+# Copyright © 2018 Andrija Jovanovic
+#
+# +-----------------------------------------------------+
+# |      A MOS Technology 6502 Processor Emulator       |
+# |       written in python by Andrija Jovanovic        |
+# |                                                     |
+# | Version 1.0      Date: 6/3/2019       File: ram.py  |
+# +-----------------------------------------------------+
+
 from util import *
 from threading import Thread
 

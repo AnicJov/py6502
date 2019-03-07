@@ -1,13 +1,28 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+# Copyright © 2018 Andrija Jovanovic
+#
+# +-----------------------------------------------------+
+# |      A MOS Technology 6502 Processor Emulator       |
+# |       written in python by Andrija Jovanovic        |
+# |                                                     |
+# | Version 1.0      Date: 6/3/2019       File: util.py |
+# +-----------------------------------------------------+
+
 import os
 import time
 import math
 
 
 def digit_count(num, base=10):
+    """ Returns number of digits in a <num> for a given <base> """
+
     if num > 0:
         return int(math.log(num, base) + 1)
     else:
         return 1
+
 
 def bprint(num):
     """ Prints a binary number <num> """
@@ -108,7 +123,7 @@ def comp(val, size=8):
 def twos_comp(val, size=8):
     """ Returns the two's complement of a positive number """
 
-    val, carry = badd(comp(val, size), 1, size)
+    val, carry = badd(comp(val, size=size), 1, size=size)
     return val
 
 
@@ -123,10 +138,10 @@ def decomp(val):
     return val
 
 
-def twos_decomp(val, size):
+def twos_decomp(val, size=8):
     """ Returns the absolute value of a two's complement negative number """
 
-    val = bsub(val, 1, size)
+    val = bsub(val, 1, size)[0]
     val = decomp(val)
     return val
 
@@ -149,7 +164,7 @@ def badd(*nums, size=8):
 def bsub(x, y, size=8):
     """ Subtracts two binary integers of a bit length of <size> using two's complement """
 
-    return badd(x, twos_comp(y), size)
+    return badd(x, twos_comp(y, size=size), size=size)
 
 
 def bin_to_str(val):
@@ -163,7 +178,10 @@ def str_to_bin(string):
 
     return int(string, 2)
 
+
 def is_immediate(addr):
+    """ Evaluates whether or not an addressing is immediate """
+
     if 0x0600 < addr < 0x0800:
         return True
     else:

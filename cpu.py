@@ -1,4 +1,14 @@
-# TODO: Add file headers
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+# Copyright © 2018 Andrija Jovanovic
+#
+# +-----------------------------------------------------+
+# |      A MOS Technology 6502 Processor Emulator       |
+# |       written in python by Andrija Jovanovic        |
+# |                                                     |
+# | Version 1.0      Date: 6/3/2019       File: cpu.py  |
+# +-----------------------------------------------------+
 
 from util import *
 from threading import Thread
@@ -8,7 +18,7 @@ from random import randint
 
 class CPU(Thread):
 
-    def __init__(self, mode=0, frequency=1, rom_path="ROM/test5.bin", ram=None, console=True):
+    def __init__(self, mode=0, frequency=1, rom_path="ROM/test13.bin", ram=None, console=True):
 
         """
 
@@ -91,7 +101,7 @@ class CPU(Thread):
 
         # | Uncomment for a memory dump in case of debugging
         # v
-        # self.ram.dump_heap()
+        self.ram.dump_heap()
 
         return state + "\n" + str(self.ram)
 
@@ -204,6 +214,7 @@ class CPU(Thread):
         self.lookup_table[0x91] = lambda: self.sta(self.indirect_y())
 
         self.lookup_table[0x8E] = lambda: self.stx(self.absolute())
+        self.lookup_table[0x96] = lambda: self.stx(self.zero_page_y())
 
         self.lookup_table[0x8C] = lambda: self.sty(self.absolute())
 
@@ -232,7 +243,7 @@ class CPU(Thread):
         self.lookup_table[0xB0] = lambda: self.bcs(self.relative())
         self.lookup_table[0xF0] = lambda: self.beq(self.relative())
         self.lookup_table[0xD0] = lambda: self.bne(self.relative())
-        self.lookup_table[0x10] = lambda: self.brl(self.relative())
+        self.lookup_table[0x10] = lambda: self.bpl(self.relative())
 
         self.lookup_table[0x18] = lambda: self.clc()
 
@@ -381,7 +392,6 @@ class CPU(Thread):
         addr = hcat(self.ram.read(self.PC + 2), self.ram.read(self.PC + 1))
 
         self.offset += 2
-        print(self.offset)
 
         return addr
 
@@ -432,9 +442,6 @@ class CPU(Thread):
         -- Instructions --
         
     """
-
-    # TODO: Make addressing modes separate functions and pass the return into
-    #       specific instruction functions
 
     """ - UNK - Unknown Instruction """
     def unk(self, opcode=0xFF):
@@ -489,7 +496,7 @@ class CPU(Thread):
         self.negative_check(self.Y)
 
     """ - LSR - Logical Shift Right """
-    def lst(self, addr):
+    def lsr(self, addr):
         # Accumulator
         if addr is None:
             print("LSR")
@@ -542,19 +549,19 @@ class CPU(Thread):
     def sta(self, addr):
         print("STA $" + hfmt(addr))
 
-        self.ram.write(addr, self.AX)
+        self.ram.write(self.ram.read(addr), self.AX)
 
     """ - STX - Store X Register """
     def stx(self, addr):
         print("STX $" + hfmt(addr))
 
-        self.ram.write(addr, self.X)
+        self.ram.write(self.ram.read(addr), self.X)
 
     """ - STY - Store Y Register """
     def sty(self, addr):
         print("STY $" + hfmt(addr))
 
-        self.ram.write(addr, self.Y)
+        self.ram.write(self.ram.read(addr), self.Y)
 
     """ - TAX - Transfer Accumulator to X """
     def tax(self):
@@ -716,12 +723,10 @@ class CPU(Thread):
             # If number is negative subtract it's two's complement
             if check_bit(addr, 7):
                 num = decomp(addr)
-                self.PC -= num
+                self.PC -= (num + 1)
             # If number is positive add it to the program counter
             else:
                 self.PC += (addr + 1)
-        else:
-            self.offset += 1
 
     """ - BCS - Branch if Carry Set """
     def bcs(self, addr):
@@ -732,12 +737,10 @@ class CPU(Thread):
             # If number is negative subtract it's two's complement
             if check_bit(addr, 7):
                 num = decomp(addr)
-                self.PC -= num
+                self.PC -= (num + 1)
             # If number is positive add it to the program counter
             else:
                 self.PC += (addr + 1)
-        else:
-            self.offset += 1
 
     """ - BEQ - Branch if Equal """
     def beq(self, addr):
@@ -748,15 +751,15 @@ class CPU(Thread):
             # If number is negative subtract it's two's complement
             if check_bit(addr, 7):
                 num = decomp(addr)
-                self.PC -= num
+                self.PC -= (num + 1)
             # If number is positive add it to the program counter
             else:
                 self.PC += (addr + 1)
-        else:
-            self.offset += 1
 
     """ - BNE - Branch if Not Equal """
     def bne(self, addr):
+        addr = self.ram.read(addr)
+
         print("BNE $" + hfmt(addr))
 
         # If zero bit is clear add relative displacement
@@ -764,12 +767,10 @@ class CPU(Thread):
             # If number is negative subtract it's two's complement
             if check_bit(addr, 7):
                 num = decomp(addr)
-                self.PC -= num
+                self.PC -= (num + 1)
             # If number is positive add it to the program counter
             else:
                 self.PC += (addr + 1)
-        else:
-            self.offset += 1
 
     """ - BPL - Branch if Positive """
     def bpl(self, addr):
@@ -780,12 +781,10 @@ class CPU(Thread):
             # If number is negative subtract it's two's complement
             if check_bit(addr, 7):
                 num = decomp(addr)
-                self.PC -= num
+                self.PC -= (num + 1)
             # If number is positive add it to the program counter
             else:
                 self.PC += (addr + 1)
-        else:
-            self.offset += 1
 
     """ - CLC - Clear Carry Flag """
     def clc(self):
@@ -845,7 +844,7 @@ class CPU(Thread):
         self.flags = set_bit(self.flags, 7, check_bit(result, 7))
 
     """ - CPY - Compare Y Register """
-    def cpy(self, val):
+    def cpy(self, addr):
         if is_immediate(addr):
             print("CPY #$" + hfmt(self.ram.read(addr)))
         else:
@@ -874,7 +873,9 @@ class CPU(Thread):
     def jmp(self, addr):
         print("JMP $" + hfmt(addr))
 
-        self.PC = addr
+        self.PC = addr - 1
+
+        self.offset = 0
 
     """ - JSR - Jump to Subroutine """
     def jsr(self, addr):
@@ -887,7 +888,7 @@ class CPU(Thread):
 
         self.SP -= 2
 
-        self.PC = addr
+        self.PC = addr - 3
 
     """ - RTS - Return from Subroutine """
     def rts(self):
